@@ -1,0 +1,413 @@
+% RLJ main.tex Version 2025.1
+
+\documentclass[10pt]{article} % For LaTeX2e
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AUTHOR: Select ONE option:
+%      [accepted]{rlj} --> for camera ready (after peer review, if accepted)
+%      {rlj}           --> for submission
+%      [preprint]{rlj} --> to de-anonymize and remove references to RLJ/RLC
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \usepackage{rlj}            % Should be uncommented for submission
+\usepackage[accepted]{rlj} % Should be uncommented for the camera-ready
+%\usepackage[preprint]{rlj} % Should be uncommented for preprint versions
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% WARNING: The following packages are already included in the
+%          rlj.sty style file:
+%
+%  1. fancyhdr  - For controlling header/footers
+%  2. natbib    - For formatting the bibliography
+%  3. enumitem  - To customize the appearance of lists
+%  4. fontenc (with option [T1]) - Allows for proper hyphenation and accents
+%  5. times     - Times new roman font
+%  6. ragged2e  - Used to justify text
+%  7. tcolorbox - Used to create boxes on cover page
+%  8. hyperref  - Configures hyperlinks throughout (e.g., links to references)
+%  9. xcolor    - Used to define custom colors for links and boxes
+%  10. amsmath  - Not used, but conflicts with lineno, so we include (and patch) it for authors
+%  11. etoolbox - Included in the amsmath + lineno patch
+%  12. lineno   - For adding line numbers when in submission
+%
+% You do not need to include them again in your main.tex.
+% Including them again may lead to conflicts or compilation errors.
+% Additionally, avoid loading packages that might conflict with these.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Recommended (but not required) packages
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{amssymb}            % Defines common symbols like \mathbb R
+\usepackage{mathtools}          % Extends amsmath, providing common math tools
+\usepackage{mathrsfs}           % Enables \mathscr, which can work in cases that \mathcal does not
+%\mathtoolsset{showonlyrefs}     % Only number equations that are referenced (optional)
+\usepackage{graphicx}           % For including images
+\usepackage{subcaption}         % Allows for the use of subfigures and subcaptions
+\usepackage[space]{grffile}     % For spaces in image names
+\usepackage{url}                % For displaying URLs
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AUTHOR: Fill in the following meta-data
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Enter the title of your paper:
+\title{Transferability of Sparse Subnetworks in Deep Reinforcement Learning}
+
+% The "running title" will be displayed in the header on every-other page.
+% It is typically either the same as the title or a shorter version of the title.
+% Enter your running title here:
+%\setrunningtitle{Enter Your Running Title Here}
+\setrunningtitle{RL Proposal}
+
+% WARNING: Authors must not appear in the submitted version. They should be hidden
+% as long as the rlj package is used without the [accepted] or [preprint] options.
+% Non-anonymous submissions will be rejected without review.
+
+% Enter the author names below. 
+% NOTE: Denote affiliations using superscripts as in the provided example.
+% NOTE: Use \textscript{1,2,3} instead of $^{1,2,3}$.
+%       - Failure to do so will cause affiliation superscripts to appear on the cover page for camera-ready and preprint versions.
+\author{Sebastian Pusch\textsuperscript{1} (s5488079), Mihai Damian\textsuperscript{1} (s5508983), Yitong Lin Yang\textsuperscript{1} (s5460611), Riandika Marshequila Dinu\textsuperscript{1} (s5603838) }
+
+% NOTE: For camera-ready and preprint versions, the cover page includes author names but not affiliations.
+% It automatically removes the superscripts for affiliations.
+% If the automatic process breaks (e.g., if an author name should include a superscript), you can manually define the author string to appear on the cover page by uncommenting the following line.
+%\coverPageAuthor{Marlos C. Machado, Philip S. Thomas, Lorem Ipsum}
+
+% Author emails, which can be clustered if they have shared endings as in this example
+\emails{\{s.pusch,m.damian,y.lin.39,riandika.marshequila.dinu\}@student.rug.nl}
+
+% Author affiliations, in the order the occur
+% The inclusion of state/province, etc. is optional.
+% The inclusion of multiple affiliations is optional.
+%   - List multiple affiliations with comma-separated numbers as in the example.
+\affiliations{
+$^{1}$\textbf{University of Groningen - Reinforcement Learning Practical - Group 9}
+}
+
+
+\begin{comment}
+\contribution{
+    % Contribution
+    Provide a succinct but precise list of the contribution(s) of the paper. Use contextual notes to avoid implications of contributions more significant than intended and to clarify and situate the contribution relative to prior work (see the examples below). If there is no additional context, enter ``None''. Try to keep each contribution to a single sentence, although multiple sentences are allowed when necessary. If using complete sentences, include punctuation. If using a single sentence fragment, you may omit the concluding period. A single contribution can be sufficient, and there is no limit on the number of contributions. Submissions will be judged mostly on the contributions claimed on their cover pages and the evidence provided to support them. Major contributions should not be claimed in the main text if they do not appear on the cover page. Overclaiming can lead to a submission being rejected, so it is important to have well-scoped contribution statements on the cover page.
+    }
+    {
+    % Caveat:
+    None
+    }
+
+\contribution{
+    % Contribution
+    The submission template for submissions to RLJ/RLC 2025
+    }
+    {
+    % Caveat:
+    Built from previous RLC/RLJ, ICLR, and TMLR submission templates
+    }
+    
+\contribution{
+    % Contribution
+    \textit{{[}Example of one contribution and corresponding contextual note for the paper ``Policy gradient methods for reinforcement learning with function approximation'' \citep{Sutton2000}.]}\\ This paper presents an expression for the policy gradient when using function approximation to represent the action-value function.
+    }
+    {
+    % Context:
+    Prior work established expressions for the policy gradient without function approximation \citep{Williams1992}.
+    }
+\end{comment}
+
+% Include a list of keywords for the topic of the paper:
+\keywords{RLJ, RLC, formatting guide, style file, \LaTeX~template.} % Your keywords
+
+% Define the summary that appears on the cover page.
+%\summary{The summary appears on the cover page. Although it can be identical to the abstract, it does not have to be. One might choose to omit the stated contributions in the Summary, given that they will be stated in the box below. The original abstract may also be extended to two paragraphs. The authors should ensure that the contents of the cover page fit entirely on a single page. The cover page does \textbf{not} count towards the 8--12 page limit.
+%}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Begin document, create title and abstract
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+%\makeCover  % Create the cover page
+\maketitle  % Make the title section
+
+\section{Motivations}
+
+Modern neural networks in supervised learning are typically heavily overparameterized, a phenomenon already noted in classic work such as Optimal Brain Damage \citep{lecun_obd}, which showed that many parameters can be removed with little loss in performance. The Lottery Ticket Hypothesis (LTH) \citep{frankle_lth} uses iterative magnitude pruning to identify sparse subnetworks—“winning tickets”—inside dense, randomly initialized networks, then resets their surviving weights to their original values and retrains them in isolation. These subnetworks can match or exceed the accuracy of the full model, often training faster and more reliably, and follow-up work shows that they can sometimes transfer across related datasets \citep{one_ticket}, suggesting that they encode meaningful inductive biases rather than merely overfitting to a single task.
+
+In deep reinforcement learning, transfer has been far less successful. Sabatelli and Geurts (\citeyear{sabatelli_transfer}) examine transfer learning in Atari by pre-training a dense Deep Q-Network (DQN) on a source game and transferring the convolutional encoder to a target game while reinitializing the final value layer. They report limited or negative transfer and conjecture that the tight co-evolution of the feature extractor and value function approximator during training causes negative transfer: reinitializing the head breaks this coupling, leaving the pretrained features detached from the new value function. This highlights the importance of preserving representational alignment during transfer.
+
+At the same time, recent work shows that sparsity itself can be effective in reinforcement learning (RL) when handled appropriately. Obando-Ceron et al. (\citeyear{obando_pruned}) demonstrate that pruned value-based agents can match or surpass dense performance even at high sparsity levels, indicating that significant parameter reductions do not necessarily degrade policy quality. Todorov et al.\ (\citeyear{todorov_sparse}) further find that dynamically sparse methods such as  Sparse Evolutionary Training (SET) and Gradual Magnitude Pruning (GMP) are more adaptive and robust in multi-task RL than both dense agents and static sparse models. Together, these results suggest that sparse RL networks can perform well when sparsity is applied in a manner that preserves learning dynamics.
+
+Despite these encouraging results, it remains unclear how sparsity interacts with transfer. Prior work has either examined transfer in dense agents \citep{sabatelli_transfer} or studied sparsity in isolation \citep{obando_pruned,todorov_sparse}, without considering whether sparse subnetworks identified on one RL task—such as winning tickets—can be effectively reused on another. In particular, the role of dynamic sparsification during adaptation to a new task has not been explored. Understanding this interaction is key to determining whether transferable sparse representations can be constructed in RL.
+
+\section{Research Question}
+
+To what extent do sparse subnetworks ("winning tickets") discovered on a source reinforcement learning task transfer to related target tasks, and how does introducing dynamic sparsification during target-task training (e.g., SET or GMP) affect transfer performance and network plasticity when compared against dense baselines and static sparse tickets?
+
+\section{Methodology}
+
+We investigate our research question using Double Deep Q-Networks (DDQN) and Deep Quality-Value Networks (DQV), two standard value-based deep RL algorithms commonly used in transfer-learning studies, on a subset of the Atari benchmark. Three environments are selected from the Atari benchmark (Pong, Breakout, and Space Invaders), representing related visual control tasks with differing transition dynamics. Each environment serves once as a source and once as a target, yielding nine source–target combinations including self-transfer. All agents share the same architecture, which consists of a standard convolutional encoder and a value head. Sparsification during training is performed using GMP and SET. All models, pruning procedures, and training loops are implemented in PyTorch, using standard experience replay and target-network updates.
+
+\subsection{Phase 1: Finding Sparse Subnetworks on the Source Task}
+
+To establish reliable reference performance, we first tune dense DDQN and DQV agents on each environment. We then identify sparse subnetworks using two magnitude-based mask-finding procedures:
+
+\paragraph{Iterative Magnitude Pruning (IMP).}
+Following the Lottery Ticket Hypothesis framework, the dense network is:
+\begin{enumerate}[leftmargin=1.2em]
+    \item trained to convergence,
+    \item pruned by removing a fraction of the lowest-magnitude weights,
+    \item rewound to its original initialization.
+\end{enumerate}
+Repeating this process produces a sparse mask $M_{\mathrm{IMP}}$ at a target sparsity.
+
+
+
+\paragraph{Gradual Magnitude Pruning (GMP).}
+We also apply the gradual schedule of \citet{zhu_gupta}, which increases sparsity from $s_0$ to $s_T$ between pruning steps $t_0$ and $t_1$:
+\[
+s(t) = s_T + (s_0 - s_T)\!\left(1 - \frac{t - t_0}{t_1 - t_0}\right)^3.
+\]
+
+Here, $s(t)$ is the sparsity at pruning step $t$, $s_0$ is the initial sparsity, and $s_T$ is the final target sparsity. The parameters $t_0$ and $t_1$ mark the start and end of the pruning schedule, and the cubic term controls the rate at which sparsity increases. At each pruning event, the lowest-magnitude weights are removed, yielding a final sparse mask $M_{\mathrm{GMP}}$.
+
+Moderate sparsity levels (60--80\%) are used to retain capacity for re-alignment with the newly initialized value head, consistent with the conjecture of \citet{sabatelli_transfer} that highly specialized feature extractors hinder transfer.
+
+\paragraph{Baselines, tuning, and ablations.}
+All experiments use PyTorch and standard Atari training protocols \citep{mnih2015humanlevel}. Dense-from-scratch DDQN/DQV agents act as baselines. In Phase 1 we tune learning rate, target-update frequency, and pruning parameters, and perform ablations over pruning schedules and sparsity levels to ensure stable mask discovery.
+
+We perform controlled ablation by varying one component at a time while keeping all other elements fixed:
+
+\begin{enumerate}[label=(\alph*)]
+\item Mask source (IMP vs.\ GMP): 
+We fix all optimization settings, architectures, and sparsification hyperparameters, and vary only the mask-finding procedure used on the source task. Specifically, we compare subnetworks obtained via IMP against those obtained via GMP. This ablation isolates whether transfer behaviour is determined primarily by the type of sparse mask discovered during source-task training.
+
+\item Sparsity level (60\%, 70\%, 80\%):
+We fix the pruning schedule, learning rate, and target-network update frequency, and vary only the final sparsity level of the subnetworks. By evaluating masks at 60\%, 70\%, and 80\% sparsity, this ablation tests how sensitive transfer performance and plasticity metrics are to the amount of parameter removal, independent of mask source or adaptation strategy.
+
+\end{enumerate}
+
+We base our tuning choices on prior work showing that sparse deep RL agents are highly sensitive to optimization settings. Learning rate and target-network update frequency are the two hyperparameters with the strongest effect on stability in pruned value-based agents, mainly because sparsity increases gradient variance \citep{obando_pruned}. Dynamic sparsification makes this sensitivity even stronger, so pruning-schedule parameters also become important for preserving plasticity \citep{todorov_sparse}. For this reason, we limit tuning to these components and follow established recommendations for sparse DQN-style systems \citep{obando_pruned,todorov_sparse}, ensuring that mask quality is not affected by unstable optimization.
+
+\subsection{Phase 2: Transfer and Adaptation on the Target Task}
+
+After transferring the IMP- or GMP-based subnetworks to the target task, we vary how sparsity is handled during target-task learning. We compare subnetworks obtained via IMP and GMP on the source task, and we consider three adaptation regimes during target-task training: (i) no further pruning (static sparse ticket), (ii) GMP (dynamic magnitude-based pruning), and (iii) SET (dynamic rewiring at fixed sparsity). This yields six core configurations:
+\[
+\text{IMP-ticket} \rightarrow \{\text{none},\ \text{GMP},\ \text{SET}\}, \qquad
+\text{GMP-ticket} \rightarrow \{\text{none},\ \text{GMP},\ \text{SET}\}.
+\]
+We additionally include dense-from-scratch and sparse-only-on-target baselines to separate the effects of transfer from the effects of sparsity. Finally, we perform ablations over dynamic sparsity regimes (none, GMP, SET) and mask sources (IMP vs.\ GMP) to isolate the contribution of each component to transfer behaviour.
+
+\subsection{Metrics}
+
+We evaluate performance using the Interquartile Mean (IQM) of episodic return \citep{agarwal2021deep}, reported with $95\%$ bootstrapped confidence intervals over ten seeds. To quantify transfer benefit, we compute the \emph{Area Ratio(r)}, defined as
+\[
+r \;=\; \frac{\mathrm{Area}_{\text{transfer}} - \mathrm{Area}_{\text{scratch}}}{\mathrm{Area}_{\text{scratch}}},
+\]
+which measures the overall improvement or degradation relative to training from scratch.
+
+\subsection{Hypothesis}
+
+If our hypothesis is correct, subnetworks identified on the source task will exhibit positive transfer once dynamic sparsity is reintroduced during target-task training. We expect SET-based adaptation to yield the strongest transfer benefits, with both IMP-ticket $\rightarrow$ SET and GMP-ticket $\rightarrow$ SET outperforming static sparse tickets and GMP-only adaptation. Among all transfer configurations, we anticipate that IMP-ticket $\rightarrow$  SET will produce the largest improvement relative to IMP-ticket $\rightarrow$ none. Finally, although dense-from-scratch and sparse-only-on-target agents do not involve transfer, we expect the best-performing transfer configurations to achieve competitive or superior \textit{absolute} performance, as measured by interquartile mean (IQM), compared to these baselines.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %% Section: Citations, figures, tables, references, equations
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \begin{comment}
+% 
+% \section{Citations, figures, tables, references, equations}
+% \label{sec:others}
+% 
+% These instructions apply to everyone, regardless of the formatter being used.
+% 
+% \subsection{Citations within the text}
+% \label{sec:citations}
+% Citations within the text should be based on the \texttt{natbib} package and include the authors' last names and year (with the ``et~al.'' construct for more than two authors). When the authors or the publication are included in the sentence, the citation should not be in parenthesis, using \verb|\citet{}| (as in ``See the work of \citet{sutton1998introduction} for more information.''). Otherwise, the citation should be in parenthesis using \verb|\citep{}| (as in ``Reinforcement learning is defined not by characterizing learning methods, but by characterizing a learning \textit{problem} \citep{sutton1998introduction}.'').
+% 
+% The corresponding references are to be listed in alphabetical order of authors, in the \textbf{References} section. As to the format of the references themselves, any style is acceptable as long as it is used consistently.
+% 
+% \subsection{Footnotes}
+% \label{sec:footnotes}
+% Indicate footnotes with a number\footnote{This is an example of a footnote.} in the text. Place the footnotes at the bottom of the page on which they appear. Precede the footnote with a horizontal rule of 2~inches. When following punctuation, footnotes should be placed after the punctuation (e.g., commas and periods).\footnote{This is a second example of a footnote.}
+% 
+% \subsection{Figures}
+% \label{sec:figures}
+% All artwork must be neat, clean, and legible when printed. Lines should be dark enough for purposes of reproduction. The figure number and caption always appear after the figure. Place one line space before the figure caption, and one line space after the figure. The figure caption is lowercase (except for the first word and proper nouns); figures are numbered consecutively.
+% 
+% Make sure the figure caption does not get separated from the figure. Leave sufficient space to avoid splitting the figure and figure caption. Ensure that figures are always referenced in the text before they appear, or on the same page that they appear. This will be ensured if the figure occurs after its first reference in the source. For example, see Figure \ref{fig:example}.
+% 
+% % This figure is after it was first referenced, and so latex will ensure it appears on the same page that it is referenced or after.
+% \begin{figure}[ht]
+%     \begin{center}
+%         \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+%     \end{center}
+%     \caption{Sample figure caption.}
+%     \label{fig:example}
+% \end{figure}
+% 
+% You may use color figures. However, it is best for the figure captions and the paper body to make sense if the paper is printed either in black/white or in color.
+% 
+% You may use subfigures, as shown in Figure \ref{fig:subfigureExample}.
+% 
+% \begin{figure}[htbp]
+%     \centering
+%     \begin{subfigure}[b]{0.45\textwidth}
+%         \centering
+%         %\includegraphics[width=\textwidth]{image1}
+%         \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}} % Replace this line with the line above, where image1 is your image.
+%         \caption{First subfigure}
+%         \label{fig:sub1}
+%     \end{subfigure}
+%     \hfill
+%     \begin{subfigure}[b]{0.45\textwidth}
+%         \centering
+%         %\includegraphics[width=\textwidth]{image2}
+%         \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}} % Replace this line with the line above, where image2 is your image.
+%         \caption{Second subfigure}
+%         \label{fig:sub2}
+%     \end{subfigure}
+%     \caption{An example using subfigures.}
+%     \label{fig:subfigureExample}
+% \end{figure}
+% 
+% \subsection{Tables}
+% \label{sec:tables}
+% Tables must be centered, neat, clean and legible. Do not use hand-drawn tables. The table number and title always appear before the table.\footnote{There was a typo in these instructions for RLC 2025, and so failure to follow this policy should not be held against submissions.} See Table~\ref{tab:exampleTable}. Place one line space before the table title, one line space above the table title, and one line space after the table. Tables are numbered consecutively.
+% 
+% \begin{table}[htbp]
+%     \caption{Sample table caption}
+%     \begin{center}
+%         \begin{tabular}{ll}
+%             \multicolumn{1}{l}{\bf PART}  &\multicolumn{1}{l}{\bf DESCRIPTION}
+%             \\ \hline \\
+%             Actor         &Stores and updates the policy \\
+%             Critic        &Stores and updates a value function \\
+%         \end{tabular}
+%     \end{center}
+%     %\caption{Sample table caption}
+%     \label{tab:exampleTable}
+% \end{table}
+% 
+% \subsection{Equations}
+% \label{sec:equations}
+% Equations can be included inline or using \texttt{equation}, \texttt{gather}, or \texttt{align} blocks. When using \texttt{align} blocks, place the alignment character {\tt\&} after equality or inequality symbols so that it is visually clear where each expression (which may span more than one line) begins and ends, as in the following example. 
+% \begin{align}
+%     \nonumber\Pr(A_2=a_2) =& \sum_{s_0 \in \mathcal S} \Pr(S_0{=}s_0) \sum_{a_0 \in \mathcal A} \Pr(A_0{=}a_0|S_0{=}s_0) \sum_{s_1 \in \mathcal S} \Pr(S_1{=}s_1|S_0{=}s_0,A_0{=}a_0)\\
+%     \nonumber&\times \!\!\! \sum_{a_1 \in \mathcal A} \Pr(A_1{=}a_1|S_1{=}s_1)\sum_{s_2 \in \mathcal S}\Pr(S_2{=}s_2|S_1{=}s_1,A_1{=}a_1)\Pr(A_2{=}a_2|S_2{=}s_2)\\
+%     %
+%     \label{eq:secondActionPr}
+%     \nonumber=&\sum_{s_0 \in \mathcal S} d_0(s_0) \sum_{a_0 \in \mathcal A} \pi(s_0,a_0)\sum_{s_1 \in \mathcal S} p(s_0,a_0,s_1) \sum_{a_1 \in \mathcal A} \pi(s_1,a_1) \sum_{s_2 \in \mathcal S}p(s_1,a_1,s_2)\\ 
+%     %
+%     &\times\pi(s_2,a_2),
+% \end{align}
+% where $\times$ denotes scalar multiplication split across multiple lines. 
+% 
+% You may use the style of your choice when referencing expressions by number, including the following forms: 
+% \begin{itemize}
+%     \item In \eqref{eq:secondActionPr}, there is no summation over $a_2$ because it is defined on the left side of the equation.\footnote{This format is sometimes preferred because often referenced expressions are inequalities or definitions, not equations. Notice the use of \texttt{eqref} in place of \texttt{ref} in this example.}
+%     \item In Equation~\ref{eq:secondActionPr}, there is no summation over $a_2$ because it is defined on the left side of the equation.
+%     \item In Eq.~\ref{eq:secondActionPr}, there is no summation over $a_2$ because it is defined on the left side of the equation.
+% \end{itemize}
+% You may number all lines of all equations, some lines of each equation (typically one line per equation), or only the equations that are referenced.\footnote{To number some lines of each equation use \texttt{\textbackslash nonumber} to suppress numbers for some of the lines, as in this document. To number only the referenced equations, uncomment the line in main.tex: \texttt{\textbackslash mathtoolsset\{showonlyrefs\}}. Note that there may be conflicts between showonlyrefs and both autoref and cref.} 
+% %
+% The default behavior is to number all lines of all equations and we strongly encourage (but do not require) authors to number all lines of all equations for initial submissions to allow reviewers to easily reference specific lines.
+% 
+% 
+% 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %% Section: Final instructions
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \section{Final instructions}
+% \label{sec:final}
+% Do not change any aspects of the formatting parameters in the style files. In particular, do not modify the width or length of the rectangle the text should fit into, and do not change font sizes (except perhaps in the \textbf{References} section; see below). Please note that pages should be numbered for submissions, but not for camera-ready versions.
+% 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %% Section: Preparing files
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \section{Preparing PostScript or PDF files}
+% \label{sec:prep}
+% We recommend preparing your manuscript using the provided Overleaf project, which will automatically construct a PDF file for submission. This file can be downloaded by clicking the ``Menu'' button in the top left, and then selecting ``PDF'' at the top of the menu that appears.
+% 
+% If you are not using Overleaf, please prepare PostScript or PDF files with paper size ``US Letter'', and not, for example, ``A4''. The -t letter option on dvips will produce US Letter files.
+% 
+% Consider directly generating PDF files using \verb+pdflatex+ (especially if you are a MiKTeX user). PDF figures must be substituted for EPS figures, however.
+% 
+% Otherwise, please generate your PostScript and PDF files with the following commands:
+% \begin{verbatim}
+% dvips mypaper.dvi -t letter -Ppdf -G0 -o mypaper.ps
+% ps2pdf mypaper.ps mypaper.pdf
+% \end{verbatim}
+% 
+% \subsection{Margins in LaTeX}
+% \label{sec:margins}
+% Most of the margin problems come from figures positioned by hand using \verb+\special+ or other commands. We suggest using the command \verb+\includegraphics+ from the graphicx package. Always specify the figure width as a multiple of the line width as in the example below using .eps graphics
+% \begin{verbatim}
+%    \usepackage[dvips]{graphicx} ...
+%    \includegraphics[width=0.8\linewidth]{myfile.eps}
+% \end{verbatim}
+% or % Apr 2009 addition
+% \begin{verbatim}
+%    \usepackage[pdftex]{graphicx} ...
+%    \includegraphics[width=0.8\linewidth]{myfile.pdf}
+% \end{verbatim}
+% for .pdf graphics. See Section~4.4 in the graphics bundle documentation (\url{http://www.ctan.org/tex-archive/macros/latex/required/graphics/grfguide.ps})
+% 
+% A number of width problems arise when LaTeX cannot properly hyphenate a line. Please give LaTeX hyphenation hints using the \verb+\-+ command.
+% 
+% \subsubsection*{Broader Impact Statement}
+% \label{sec:broaderImpact}
+% In this optional section, RLJ/RLC encourages authors to discuss possible repercussions of their work, notably any potential negative impact that a user of this research should be aware of. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bibliography
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\bibliography{main}
+\bibliographystyle{rlj}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Appendices
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\appendix
+
+% 
+% \section{The first appendix}
+% \label{sec:appendix1}
+% This is an example of an appendix. 
+% 
+% \noindent \textbf{Note:} Appendices appear before the references and are viewed as part of the ``main text'' and are subject to the 8--12 page limit, are peer reviewed, and can contain content central to the claims of the paper. 
+% 
+% \section{The second appendix}
+% \label{sec:appendix2}
+% This is an example of a second appendix. If there is only a single section in the appendix, you may simply call it ``Appendix'' as follows:
+% 
+% \section*{Appendix}
+% % No label, since this can't be referenced meaningfully with \ref{}.
+% This format should only be used if there is a single appendix (unlike in this document).
+% 
+% \subsubsection*{Acknowledgments}
+% \label{sec:ack}
+% Use unnumbered third level headings for the acknowledgments. All acknowledgments, including those to funding agencies, go at the end of the paper. Only add this information once your submission is accepted and deanonymized. The acknowledgments do not count towards the 8--12 page limit.
+% 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% %% NOTE: THIS MARKS THE END OF THE "MAIN TEXT"
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % AUTHOR: If your paper has no supplementary materials, you may 
+% %         comment out the line below, which creates the title for
+% %         the supplementary materials.
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \beginSupplementaryMaterials
+% 
+% Content that appears after the references are not part of the ``main text,'' have no page limits, are not necessarily reviewed, and should not contain any claims or material central to the paper. 
+% %
+% If your paper includes supplementary materials, use the \begin{center}
+%     {\tt {\textbackslash}beginSupplementaryMaterials} 
+% \end{center}
+% command as in this example, which produces the title and disclaimer above. 
+% %
+% If your paper does not include supplementary materials, this command can be removed or commented out.
+% \end{comment}
+
+\end{document}
