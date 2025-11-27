@@ -23,6 +23,13 @@ jobs:
         git config --global user.email "actions@github.com"
         git config --global init.defaultBranch main
 
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.OVERLEAF_SYNC_SSH_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+
     - name: Checkout overleaf-sync branch
       run: |
         git fetch origin overleaf-sync
