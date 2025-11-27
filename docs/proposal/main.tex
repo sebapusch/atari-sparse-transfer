@@ -144,7 +144,7 @@ Despite these encouraging results, it remains unclear how sparsity interacts wit
 
 To what extent do sparse subnetworks ("winning tickets") discovered on a source reinforcement learning task transfer to related target tasks, and how does introducing dynamic sparsification during target-task training (e.g., SET or GMP) affect transfer performance and network plasticity when compared against dense baselines and static sparse tickets?
 
-\section{Neurology}
+\section{Methodology}
 
 We investigate our research question using Double Deep Q-Networks (DDQN) and Deep Quality-Value Networks (DQV), two standard value-based deep RL algorithms commonly used in transfer-learning studies, on a subset of the Atari benchmark. Three environments are selected from the Atari benchmark (Pong, Breakout, and Space Invaders), representing related visual control tasks with differing transition dynamics. Each environment serves once as a source and once as a target, yielding nine source–target combinations including self-transfer. All agents share the same architecture, which consists of a standard convolutional encoder and a value head. Sparsification during training is performed using GMP and SET. All models, pruning procedures, and training loops are implemented in PyTorch, using standard experience replay and target-network updates.
 
