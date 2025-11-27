@@ -12,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout main repo
+    - name: Checkout project
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
-    - name: Set up Git
+    - name: Setup Git
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
@@ -30,21 +30,20 @@ jobs:
         chmod 600 ~/.ssh/id_ed25519
         ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-    - name: Checkout overleaf-sync branch
+    - name: Setup Sync Local
+      run:
+        cd ~
+        git clone --depth=1 ${{ secrets.OVERLEAF_PROXY_SSH }} sync
+
+    - name: Sync Local
       run: |
         git fetch origin overleaf-sync
         git checkout overleaf-sync
+        cp -r docs/* ~/sync
 
-    - name: Push docs/ to overleaf-proxy repo
+    - name: Sync Remote
       run: |
-        rm -rf tmp_sync
-        mkdir -p tmp_sync/
-        cp -r docs/* tmp_sync/
-
-        cd tmp_sync
-
-        git init
-        git remote add origin ${{ secrets.OVERLEAF_PROXY_SSH }}
+        cd ~/sync
         git add .
-        git commit -m "Sync from main: $GITHUB_SHA"
-        git push -f origin main
+        git commit -m "[sync:$GITHUB_SHA]\n\n${{ github.event.head_commit.message }}"
+        git push origin main
