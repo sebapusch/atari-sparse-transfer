@@ -66,8 +66,11 @@ python src/rlp/entry/train.py algorithm=dqn env=atari env.id=BreakoutNoFrameskip
 To track experiments with WandB:
 
 ```bash
-python src/rlp/entry/train.py algorithm=dqn env=atari env.id=BreakoutNoFrameskip-v4 wandb.enabled=true wandb.project=rlp-25
+python src/rlp/entry/train.py algorithm=dqn env=atari env.id=PongNoFrameskip-v4 wandb.enabled=true wandb.project=rlp-25 wandb.group=dqn-pong
 ```
+
+> [!IMPORTANT]
+> When `wandb.enabled=true`, you **must** provide a `wandb.group` (e.g., `wandb.group=experiment-name`). This ensures that runs are organized and comparable. The logger will raise an error if the group is missing.
 
 ### Custom Configuration
 

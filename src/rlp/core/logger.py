@@ -63,6 +63,9 @@ class WandbLogger(LoggerProtocol):
             if wandb is None:
                 raise ImportError("wandb is not installed. Please install it with `pip install wandb`.")
             
+            if not group:
+                raise ValueError("wandb.group is required when wandb is enabled. Please specify a group name (e.g., 'dqn-atari').")
+            
             wandb.init(
                 project=project,
                 entity=entity,
