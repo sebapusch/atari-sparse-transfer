@@ -1,0 +1,4 @@
+method: "none"
+# Placeholders for other pruning methods
+# sparsity: 0.0
+# schedule: "constant"

@@ -1,0 +1,26 @@
+name: "dqn"
+
+# Network
+network:
+  encoder: "nature_cnn" # nature_cnn, minatar_cnn
+  head: "linear" # linear, dueling
+  hidden_dim: 512
+
+# Hyperparameters
+gamma: 0.99
+tau: 1.0 # Soft update coefficient (1.0 = hard update)
+target_network_frequency: 1000 # Steps between target updates
+batch_size: 32
+learning_starts: 80000
+train_frequency: 4
+
+# Exploration
+epsilon:
+  start: 1.0
+  end: 0.01
+  decay_fraction: 0.10 # Fraction of total timesteps
+
+# Optimizer
+optimizer:
+  lr: 1e-4
+  eps: 1e-8

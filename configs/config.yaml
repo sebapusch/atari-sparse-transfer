@@ -1,0 +1,23 @@
+defaults:
+  - _self_
+  - algorithm: dqn
+  - env: atari
+  - pruning: none
+  - train: default
+
+# Global settings
+seed: 1
+device: "cuda" # or "cpu"
+
+# W&B Logging
+wandb:
+  enabled: false
+  project: "rlp-sparse"
+  entity: null
+  group: null
+  tags: []
+  job_type: "train"
+  name: null # auto-generated if null
+
+# Output directory (Hydra handles this, but we can add custom paths)
+output_dir: ${hydra:runtime.output_dir}

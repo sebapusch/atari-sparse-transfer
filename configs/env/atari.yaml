@@ -1,0 +1,9 @@
+id: "BreakoutNoFrameskip-v4"
+num_envs: 1
+capture_video: false
+frame_stack: 4
+grayscale: true
+resize: 84
+noop_max: 30
+scale_obs: false # handled by network usually, or env wrapper
+clip_rewards: true
