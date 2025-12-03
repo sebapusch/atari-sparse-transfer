@@ -22,3 +22,8 @@ class PrunerProtocol(abc.ABC):
     def on_step(self, model: nn.Module, step: int) -> None:
         """Callback for every step (e.g. for dynamic sparsity)."""
         pass
+
+    @abc.abstractmethod
+    def apply_structure(self, model: nn.Module) -> None:
+        """Apply pruning structure (e.g. identity pruning) to match another model."""
+        pass

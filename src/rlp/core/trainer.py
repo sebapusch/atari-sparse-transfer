@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 import torch
 import torch.optim as optim
+import torch.nn.utils.prune as prune
 import numpy as np
 from typing import Any, Dict
 from omegaconf import DictConfig, OmegaConf
@@ -184,6 +185,17 @@ class Trainer:
                     pruning_metrics = self.pruner.update(self.agent.network, global_step)
                     if pruning_metrics:
                         self.logger.log_metrics(pruning_metrics, step=global_step)
+                        # Ensure target network has the same structure (pruning hooks)
+                        if hasattr(self.agent, "target_network"):
+                            # Check if network is actually pruned
+                            is_pruned = False
+                            for module, name in self.pruner.get_prunable_modules(self.agent.network):
+                                if prune.is_pruned(module):
+                                    is_pruned = True
+                                    break
+                            
+                            if is_pruned:
+                                self.pruner.apply_structure(self.agent.target_network)
                         
                 # Pruning on_step
                 self.pruner.on_step(self.agent.network, global_step)

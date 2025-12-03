@@ -53,6 +53,24 @@ class BasePruner(PrunerProtocol):
         
         return zero_params / total_params if total_params > 0 else 0.0
 
+    def apply_structure(self, model: nn.Module) -> None:
+        """
+        Apply identity pruning to the model to ensure it has the same structure 
+        (weight_orig + masks) as a pruned model.
+        """
+        parameters_to_prune = self.get_prunable_modules(model)
+        if not parameters_to_prune:
+            return
+            
+        # Apply identity pruning (amount=0.0)
+        # This registers the hooks and creates weight_orig/weight_mask
+        # without changing the values or sparsity.
+        prune.global_unstructured(
+            parameters_to_prune,
+            pruning_method=prune.L1Unstructured,
+            amount=0.0,
+        )
+
 
 class GMPPruner(BasePruner):
     """
