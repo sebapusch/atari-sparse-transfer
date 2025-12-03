@@ -213,3 +213,15 @@ The configuration files are located in the `configs/` directory:
 | Parameter | Default | Description |
 | :--- | :--- | :--- |
 | `pruning.method` | `"none"` | Pruning method. |
+
+### Pruning - GMP (`configs/pruning/gmp.yaml`)
+
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `pruning.method` | `"gmp"` | Pruning method. |
+| `pruning.initial_sparsity` | `0.0` | Initial sparsity level (0.0 - 1.0). |
+| `pruning.final_sparsity` | `0.8` | Final target sparsity level (0.0 - 1.0). |
+| `pruning.start_step` | `0` | Step to start pruning. |
+| `pruning.end_step` | `null` | Step to stop pruning (if null, uses total_timesteps). |
+| `pruning.update_frequency` | `1000` | Frequency of pruning updates in steps. |
+| `pruning.scheduler` | `"cubic"` | Sparsity scheduler (`"linear"`, `"cubic"`). |

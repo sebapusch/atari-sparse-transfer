@@ -84,10 +84,19 @@ class Trainer:
             scheduler = ConstantScheduler(0.0)
             self.pruner = BasePruner(scheduler)
         elif cfg.pruning.method == "gmp":
-            # Example scheduler config mapping
-            # Assuming cfg.pruning.schedule exists
-            scheduler = LinearScheduler(0.0, 0.9, 0, cfg.train.total_timesteps // 2) # Placeholder
-            self.pruner = GMPPruner(scheduler)
+            initial_sparsity = cfg.pruning.initial_sparsity
+            final_sparsity = cfg.pruning.final_sparsity
+            start_step = cfg.pruning.start_step
+            end_step = cfg.pruning.end_step if cfg.pruning.end_step is not None else cfg.train.total_timesteps
+            
+            if cfg.pruning.scheduler == "linear":
+                scheduler = LinearScheduler(initial_sparsity, final_sparsity, start_step, end_step)
+            elif cfg.pruning.scheduler == "cubic":
+                scheduler = CubicScheduler(initial_sparsity, final_sparsity, start_step, end_step)
+            else:
+                raise ValueError(f"Unknown scheduler: {cfg.pruning.scheduler}")
+                
+            self.pruner = GMPPruner(scheduler, update_frequency=cfg.pruning.update_frequency)
         else:
             # Fallback
             scheduler = ConstantScheduler(0.0)
