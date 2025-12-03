@@ -4,4 +4,6 @@
 docs/**/*.pdf
 outputs/
 wandb/
+**/__pycache__
+.venv/
 __pycache__/
