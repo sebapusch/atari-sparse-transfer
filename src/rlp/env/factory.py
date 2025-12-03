@@ -28,7 +28,9 @@ def make_env(
         
         # Atari specific wrappers
         if "NoFrameskip" in env_id:
-             env = gym.wrappers.AtariPreprocessing(env, noop_max=30, frame_skip=4, screen_size=84, terminal_on_life_loss=True, grayscale_obs=True, scale_obs=False)
+             env = gym.wrappers.AtariPreprocessing(env, noop_max=30, frame_skip=4, screen_size=84, terminal_on_life_loss=False, grayscale_obs=True, scale_obs=False)
+             from rlp.env.wrappers import EpisodicLifeEnv
+             env = EpisodicLifeEnv(env)
              env = gym.wrappers.FrameStackObservation(env, 4)
         
         # MinAtar specific wrappers would go here
