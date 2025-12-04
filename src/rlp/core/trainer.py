@@ -13,6 +13,7 @@ from rlp.core.logger import LoggerProtocol
 from rlp.core.buffer import ReplayBuffer
 from rlp.agent.base import AgentProtocol
 from rlp.agent.dqn import DQNAgent
+from rlp.agent.ddqn import DDQNAgent
 from rlp.components.network import QNetwork
 from rlp.components.encoders import NatureCNN, MinAtarCNN
 from rlp.components.heads import LinearHead, DuelingHead
@@ -68,14 +69,16 @@ class Trainer:
                 device=str(self.device)
             )
         elif cfg.algorithm.name == "ddqn":
-            self.agent = DQNAgent(
+            self.agent = DDQNAgent(
                 network=network,
                 optimizer=optimizer,
                 num_actions=self.envs.single_action_space.n,
                 gamma=cfg.algorithm.gamma,
                 tau=cfg.algorithm.tau,
                 target_network_frequency=cfg.algorithm.target_network_frequency,
-                double_dqn=True,
+                double_dqn=True, # Although DDQNAgent enforces this logic, we keep the signature consistent or just pass it.
+                                 # Actually DDQNAgent init is inherited from DQNAgent which accepts double_dqn.
+                                 # But DDQNAgent overrides update, so this flag might be redundant but harmless.
                 device=str(self.device)
             )
         else:

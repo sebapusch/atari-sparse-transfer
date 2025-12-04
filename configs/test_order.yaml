@@ -1,7 +1,0 @@
-
-defaults:
-  - pruning: gmp
-  - _self_
-
-pruning:
-  start_step: 4000000

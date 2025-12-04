@@ -182,6 +182,26 @@ The configuration files are located in the `configs/` directory:
 | `algorithm.optimizer.lr` | `1e-4` | Learning rate. |
 | `algorithm.optimizer.eps` | `1e-8` | Optimizer epsilon. |
 
+### Algorithm - DDQN (`configs/algorithm/ddqn.yaml`)
+
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `algorithm.name` | `"ddqn"` | Name of the algorithm. |
+| `algorithm.network.encoder` | `"nature_cnn"` | Encoder type (`"nature_cnn"`, `"minatar_cnn"`). |
+| `algorithm.network.head` | `"linear"` | Head type (`"linear"`, `"dueling"`). |
+| `algorithm.network.hidden_dim` | `512` | Hidden dimension size. |
+| `algorithm.gamma` | `0.99` | Discount factor. |
+| `algorithm.tau` | `1.0` | Soft update coefficient (1.0 = hard update). |
+| `algorithm.target_network_frequency` | `1000` | Steps between target network updates. |
+| `algorithm.batch_size` | `32` | Training batch size. |
+| `algorithm.learning_starts` | `80000` | Steps before learning starts. |
+| `algorithm.train_frequency` | `4` | Steps between training updates. |
+| `algorithm.epsilon.start` | `1.0` | Starting epsilon for exploration. |
+| `algorithm.epsilon.end` | `0.01` | Final epsilon. |
+| `algorithm.epsilon.decay_fraction` | `0.10` | Fraction of total timesteps for epsilon decay. |
+| `algorithm.optimizer.lr` | `1e-4` | Learning rate. |
+| `algorithm.optimizer.eps` | `1e-8` | Optimizer epsilon. |
+
 ### Environment (`configs/env/atari.yaml`)
 
 | Parameter | Default | Description |

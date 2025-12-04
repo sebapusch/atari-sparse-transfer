@@ -52,35 +52,15 @@ class DQNAgent(AgentProtocol):
         
         # Epsilon-greedy
         if random.random() < epsilon:
-            # Assuming discrete action space size is known or inferred.
-            # Ideally we pass action_space to init, but here we can infer from network output
-            # if we assume the head is LinearHead or DuelingHead with last layer output_dim.
-            # But `network` is generic. Let's assume we can get it from the network output shape.
-            # Ideally, `get_action` should take `action_space` or we store `num_actions`.
-            # Let's infer num_actions from the network's last layer if possible, or pass it in init.
-            # For now, let's assume we can run a forward pass to get shape, or better, pass num_actions to init.
-            # Wait, the reference uses `envs.single_action_space.sample()`.
-            # The Agent shouldn't depend on `envs`.
-            # We will assume the caller handles random sampling if epsilon check passes?
-            # No, `get_action` usually handles it.
-            # Let's add `num_actions` to __init__.
-            pass
+            return np.random.randint(0, self.num_actions, size=obs.shape[0])
 
-        # We need num_actions. Let's update __init__ to take num_actions or infer it.
-        # Actually, for efficiency, we should probably just return the Q-values
-        # and let the caller decide? No, `get_action` implies returning an action.
-        
-        # Let's assume we do the forward pass first.
+        # Do the forward pass first.
         with torch.no_grad():
             q_values = self.network(torch.Tensor(obs).to(self.device))
             actions = torch.argmax(q_values, dim=1).cpu().numpy()
             
-        # If epsilon > 0, we need to overwrite with random actions.
-        # But we don't know num_actions easily without passing it.
-        # Let's assume the user passes `num_actions` to `__init__`.
         return actions
 
-    # Re-implementing with num_actions
     def __init__(
         self,
         network: QNetwork,
