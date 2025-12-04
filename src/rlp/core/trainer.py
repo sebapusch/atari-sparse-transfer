@@ -104,6 +104,7 @@ class Trainer:
             self.pruner = BasePruner(scheduler)
 
         # Initialize Buffer
+        optimize_memory_usage = cfg.env.get("frame_stack", 1) > 1
         self.buffer = ReplayBuffer(
             cfg.train.buffer_size,
             self.envs.single_observation_space.shape,
@@ -112,6 +113,7 @@ class Trainer:
             n_envs=cfg.env.num_envs,
             obs_dtype=self.envs.single_observation_space.dtype,
             action_dtype=self.envs.single_action_space.dtype,
+            optimize_memory_usage=optimize_memory_usage,
         )
 
     def train(self) -> None:
