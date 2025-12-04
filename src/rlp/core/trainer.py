@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import os
 import torch
 import torch.optim as optim
 import torch.nn.utils.prune as prune
@@ -204,6 +205,45 @@ class Trainer:
 
         self.envs.close()
         self.logger.close()
+        
+        # Save model
+        if self.cfg.train.save_model:
+            self.save_checkpoint(self.cfg.train.total_timesteps)
+
+    def save_checkpoint(self, step: int) -> None:
+        """Save model checkpoint and optionally sparsity masks."""
+        path = self.cfg.output_dir
+        os.makedirs(path, exist_ok=True)
+        
+        # Determine prefix
+        prefix = ""
+        if self.cfg.wandb.name:
+            prefix = f"{self.cfg.wandb.name}_"
+        
+        # Save model weights
+        model_path = os.path.join(path, f"{prefix}model_{step}.pt")
+        torch.save(self.agent.network.state_dict(), model_path)
+        print(f"Saved model to {model_path}")
+        
+        # Save sparsity masks
+        if self.cfg.train.get("save_sparsity_mask", False):
+            masks = {}
+            
+            # Better approach for masks: iterate named_modules of the network
+            for name, module in self.agent.network.named_modules():
+                if prune.is_pruned(module):
+                    for hook in module._forward_pre_hooks.values():
+                        if isinstance(hook, prune.BasePruningMethod):
+                            # Usually the mask is stored as buffer named "{parameter_name}_mask"
+                            # The hook._tensor_name gives the parameter name (e.g. 'weight')
+                            mask_name = f"{name}.{hook._tensor_name}_mask"
+                            mask = getattr(module, hook._tensor_name + "_mask")
+                            masks[mask_name] = mask.cpu()
+            
+            if masks:
+                mask_path = os.path.join(path, f"{prefix}masks_{step}.pt")
+                torch.save(masks, mask_path)
+                print(f"Saved sparsity masks to {mask_path}")
 
     @staticmethod
     def linear_schedule(start_e: float, end_e: float, duration: int, t: int) -> float:

@@ -225,3 +225,14 @@ The configuration files are located in the `configs/` directory:
 | `pruning.end_step` | `null` | Step to stop pruning (if null, uses total_timesteps). |
 | `pruning.update_frequency` | `1000` | Frequency of pruning updates in steps. |
 | `pruning.scheduler` | `"cubic"` | Sparsity scheduler (`"linear"`, `"cubic"`). |
+
+### Model Saving
+
+The training loop supports saving the model and sparsity masks at the end of training.
+
+| Parameter | Default | Description |
+| :--- | :--- | :--- |
+| `train.save_model` | `false` | Save the model state dict. |
+| `train.save_sparsity_mask` | `false` | Save the sparsity masks (if pruning is used). |
+
+Files are saved in the `output_dir`. If `wandb.name` is set, the filenames will be prefixed with it (e.g., `my-run_model_1000.pt`). Otherwise, they will be named `model_{step}.pt` and `masks_{step}.pt`.

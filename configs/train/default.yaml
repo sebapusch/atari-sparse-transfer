@@ -1,6 +1,7 @@
 total_timesteps: 10000000
 buffer_size: 1000000
 save_model: false
+save_sparsity_mask: false
 upload_model: false
 hf_entity: ""
 checkpoint_interval: 100000
