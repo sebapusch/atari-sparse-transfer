@@ -1,0 +1,30 @@
+defaults:
+  - algorithm: ddqn
+  - env: atari
+  - pruning: gmp
+  - train: default
+  - _self_
+
+seed: 1
+device: "cuda"
+
+wandb:
+  enabled: true
+  project: "rlp-25"
+  entity: null
+  group: "ddqn"
+  tags: ["gmp", "ddqn", "60", "atari", "breakout"]
+  job_type: "train"
+  name: "ddqn-gmp-60"
+
+pruning:
+  start_step: 4000000
+  end_step: 16000000
+  final_sparsity: 0.6
+  update_frequency: 1000
+
+train:
+  save_model: true
+  save_sparsity_mask: true
+
+output_dir: ${hydra:runtime.output_dir}
