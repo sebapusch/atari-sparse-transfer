@@ -18,31 +18,39 @@ def make_env(
     gamma: float = 0.99,
 ) -> Callable[[], gym.Env]:
     def thunk() -> gym.Env:
-        if capture_video and idx == 0:
-            env = gym.make(env_id, render_mode="rgb_array")
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+        # MinAtar specific wrappers
+        if env_id.startswith("MinAtar/"):
+            # Extract game name, e.g. MinAtar/breakout -> breakout
+            game_name = env_id.split("/")[1]
+            from rlp.env.wrappers import MinAtarToGymWrapper
+            env = MinAtarToGymWrapper(game_name)
+            env = gym.wrappers.RecordEpisodeStatistics(env)
+        
         else:
-            env = gym.make(env_id)
+            if capture_video and idx == 0:
+                env = gym.make(env_id, render_mode="rgb_array")
+                env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
+            else:
+                env = gym.make(env_id)
+                
+            env = gym.wrappers.RecordEpisodeStatistics(env)
             
-        env = gym.wrappers.RecordEpisodeStatistics(env)
-        
-        # Atari specific wrappers
-        if "NoFrameskip" in env_id:
-            env = gym.wrappers.AtariPreprocessing(
-                env, 
-                noop_max=30, 
-                frame_skip=4, 
-                screen_size=84, 
-                terminal_on_life_loss=False, 
-                grayscale_obs=True, 
-                scale_obs=True
-            )
-            from rlp.env.wrappers import EpisodicLifeEnv
-            env = EpisodicLifeEnv(env)
-            env = gym.wrappers.TransformReward(env, lambda r: np.sign(r))
-            env = gym.wrappers.FrameStackObservation(env, 4)
-        
-        # MinAtar specific wrappers would go here
+            # Atari specific wrappers
+            if "NoFrameskip" in env_id:
+                env = gym.wrappers.AtariPreprocessing(
+                    env, 
+                    noop_max=30, 
+                    frame_skip=4, 
+                    screen_size=84, 
+                    terminal_on_life_loss=False, 
+                    grayscale_obs=True, 
+                    scale_obs=True
+                )
+                from rlp.env.wrappers import EpisodicLifeEnv
+                env = EpisodicLifeEnv(env)
+                env = gym.wrappers.TransformReward(env, lambda r: np.sign(r))
+                env = gym.wrappers.FrameStackObservation(env, 4)
+
         
         env.action_space.seed(seed)
         env.observation_space.seed(seed)

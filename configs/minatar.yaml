@@ -1,0 +1,33 @@
+defaults:
+  - config
+  - _self_
+  - override algorithm: ddqn
+  - override env: minatar
+  - override pruning: none
+  - override train: default
+
+env:
+  id: "MinAtar/breakout"
+
+algorithm:
+  network:
+    encoder: "minatar_cnn"
+    hidden_dim: 128
+  
+  learning_starts: 5000
+  batch_size: 32
+  target_network_frequency: 1000
+  train_frequency: 4
+  epsilon:
+    decay_fraction: 0.1
+
+seed: 1
+device: "cuda"
+
+wandb:
+  enabled: true
+  project: "rlp-25"
+  group: "minatar"
+  tags: ["minatar", "ddqn", "breakout"]
+  job_type: "train"
+  name: "minatar-ddqn"

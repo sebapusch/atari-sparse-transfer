@@ -1,5 +1,6 @@
 import gymnasium as gym
 import numpy as np
+from typing import Optional
 
 class EpisodicLifeEnv(gym.Wrapper):
     """
@@ -40,3 +41,56 @@ class EpisodicLifeEnv(gym.Wrapper):
             self.lives = self.env.unwrapped.ale.lives()
             
         return obs, info
+
+
+class MinAtarToGymWrapper(gym.Env):
+    """
+    Wrapper to make MinAtar environments compatible with Gymnasium.
+    MinAtar envs return a boolean grid of shape (10, 10, C).
+    We convert this to a float32 box of shape (C, 10, 10) for PyTorch.
+    """
+    metadata = {"render_modes": ["human", "rgb_array"]}
+
+    def __init__(self, env_name: str):
+        from minatar import Environment
+        self.env_name = env_name
+        self.env = Environment(env_name)
+        
+        # MinAtar state is (10, 10, C) boolean
+        h, w, c = self.env.state_shape()
+        self.observation_space = gym.spaces.Box(
+            low=0.0, high=1.0, shape=(c, h, w), dtype=np.float32
+        )
+        
+        self.action_space = gym.spaces.Discrete(self.env.num_actions())
+        self.render_mode = "rgb_array"
+
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+        super().reset(seed=seed)
+        self.env.reset()
+        # Seed handling for MinAtar is not directly exposed in the same way as Gym
+        # But we can rely on global seeding if needed, or just proceed.
+        if seed is not None:
+            # MinAtar uses numpy random, so we can seed numpy if we really want to force it
+            # But usually it's better to let the global seeder handle it if possible
+            # or re-instantiate. For now, we just reset.
+            pass
+            
+        return self._get_obs(), {}
+
+    def step(self, action):
+        reward, terminated = self.env.act(action)
+        obs = self._get_obs()
+        truncated = False # MinAtar doesn't have truncation by default
+        return obs, reward, terminated, truncated, {}
+
+    def _get_obs(self):
+        # (10, 10, C) -> (C, 10, 10) and float
+        state = self.env.state()
+        return np.transpose(state, (2, 0, 1)).astype(np.float32)
+
+    def render(self):
+        return self.env.display_state()
+
+    def close(self):
+        pass

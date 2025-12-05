@@ -61,6 +61,26 @@ python src/rlp/entry/train.py algorithm=dqn env=atari env.id=BreakoutNoFrameskip
 > For Atari environments, you **must** use the `NoFrameskip-v4` versions (e.g., `PongNoFrameskip-v4`, `BreakoutNoFrameskip-v4`). 
 > Other versions (like `Pong-v4` or `Pong-v5`) do not trigger the necessary preprocessing wrappers (resizing, grayscale), leading to massive memory usage and crashes.
 
+
+### MinAtar Experiments
+
+To run experiments on MinAtar environments, use the `minatar.yaml` configuration file. You can specify the environment ID using the `env.id` override. Note that MinAtar environments must be prefixed with `MinAtar/`.
+
+```bash
+# Run Breakout on MinAtar
+python3 src/rlp/entry/train.py --config-name=minatar env.id="MinAtar/breakout"
+
+# Run SpaceInvaders on MinAtar
+python3 src/rlp/entry/train.py --config-name=minatar env.id="MinAtar/space_invaders"
+```
+
+Available MinAtar environments:
+- `MinAtar/asterix`
+- `MinAtar/breakout`
+- `MinAtar/freeway`
+- `MinAtar/seaquest`
+- `MinAtar/space_invaders`
+
 ### With Weights & Biases
 
 To track experiments with WandB:
