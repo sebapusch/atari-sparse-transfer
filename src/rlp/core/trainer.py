@@ -156,7 +156,6 @@ class Trainer:
                                 "charts/episodic_length": infos["episode"]["l"][i],
                                 "charts/epsilon": epsilon,
                             }, step=global_step)
-                            print(f"Step: {global_step}, Return: {infos['episode']['r'][i]}")
             elif "final_info" in infos:
                 # Legacy Gymnasium logging
                 for info in infos["final_info"]:
@@ -166,7 +165,6 @@ class Trainer:
                             "charts/episodic_length": info["episode"]["l"],
                             "charts/epsilon": epsilon,
                         }, step=global_step)
-                        print(f"Step: {global_step}, Return: {info['episode']['r']}")
 
             # Buffer add
             real_next_obs = next_obs.copy()
