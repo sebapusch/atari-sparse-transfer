@@ -17,7 +17,7 @@ algorithm:
   learning_starts: 5000
   batch_size: 32
   target_network_frequency: 1000
-  train_frequency: 4
+  train_frequency: 1
   epsilon:
     decay_fraction: 0.1
 
