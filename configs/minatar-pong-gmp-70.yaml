@@ -1,0 +1,40 @@
+defaults:
+  - config
+  - override algorithm: ddqn
+  - override env: minatar
+  - override pruning: gmp
+  - override train: default
+  - _self_
+
+env:
+  id: "MinAtar/space_invaders"
+
+algorithm:
+  network:
+    encoder: "minatar_cnn"
+    hidden_dim: 128
+  
+  learning_starts: 5000
+  batch_size: 32
+  target_network_frequency: 1000
+  train_frequency: 1
+  epsilon:
+    decay_fraction: 0.1
+
+pruning:
+  start_step: 1000000
+  end_step: 4000000
+
+seed: 1
+device: "cuda"
+total_timesteps: 5000000
+save_model: true
+save_sparsity_mask: true
+
+wandb:
+  enabled: true
+  project: "rlp-25"
+  group: "minatar"
+  tags: ["minatar", "ddqn", "space_indavers", "gmp", "70"]
+  job_type: "train"
+  name: "minatar-space_invaders-ddqn-gmp-70"
