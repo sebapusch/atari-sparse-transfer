@@ -75,7 +75,7 @@ class Trainer:
             ### Training
             metrics = {}
             batch = self.ctx.buffer.sample(self.cfg.batch_size)
-            agent_metrics = self.ctx.agent.update(batch)
+            agent_metrics = self.ctx.agent.update(batch, step=global_step)
 
             for metric in agent_metrics:
                 metrics[f"charts/{metric}"] = agent_metrics[metric]
