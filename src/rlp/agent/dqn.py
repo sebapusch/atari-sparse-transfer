@@ -7,7 +7,6 @@ from typing import Any, Dict
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
@@ -21,7 +20,8 @@ from rlp.pruning.base import PrunerProtocol
 class DQNConfig:
     num_actions: int
     gamma: float
-    tau: float
+    target_network_frequency: bool
+    tau: float = 1.0
     prune_encoder_only: bool = False
 
 
@@ -42,8 +42,6 @@ class DQNAgent(AgentProtocol):
 
         self.target_network = copy.deepcopy(network).to(self.device)
 
-        self.steps = 0
-
     def select_action(self, obs: np.ndarray, epsilon: float = 0.0) -> np.ndarray:
         if obs.ndim == 3:
              obs = np.expand_dims(obs, axis=0)
@@ -59,9 +57,7 @@ class DQNAgent(AgentProtocol):
         
         return actions
 
-    def update(self, batch: ReplayBufferSamples) -> dict[str, float]:
-        self.steps += 1
-
+    def update(self, batch: ReplayBufferSamples, step: int) -> dict[str, float]:
         batch = batch.to(self.device)
 
         td_target = self._compute_td_target(batch.rewards, batch.next_observations, batch.dones)
@@ -73,12 +69,16 @@ class DQNAgent(AgentProtocol):
         loss.backward()
         self.optimizer.step()
 
-        self._update_target_network()
+        if step % self.cfg.target_network_frequency == 0:
+            self._update_target_network()
 
         return {
             "loss": loss.item(),
             "q_values": old_val.mean().item(),
         }
+
+    def finished_training(self, step: int) -> None:
+        self._update_target_network()
 
     def prune(self, step: int) -> float | None:
         if self.pruner is not None:
@@ -146,14 +146,12 @@ class DQNAgent(AgentProtocol):
             "network": self.network.state_dict(),
             "target_network": self.target_network.state_dict(),
             "optimizer": self.optimizer.state_dict(),
-            "steps": self.steps,
         }
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         self.network.load_state_dict(state_dict["network"])
         self.target_network.load_state_dict(state_dict["target_network"])
         self.optimizer.load_state_dict(state_dict["optimizer"])
-        self.steps = state_dict["steps"]
 
     def to(self, device: torch.device) -> DQNAgent:
         self.device = device

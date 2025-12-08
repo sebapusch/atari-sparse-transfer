@@ -18,11 +18,14 @@ class AgentProtocol(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def update(self, batch: ReplayBufferSamples) -> dict[str, float]:
+    def update(self, batch: ReplayBufferSamples, step: int) -> dict[str, float]:
         """
         Update agent parameters based on a batch of data.
-        Returns loss and mean q_values (!TODO
+        Return metrics
         """
+        ...
+
+    def finished_training(self, step: int) -> None:
         ...
 
     @abc.abstractmethod

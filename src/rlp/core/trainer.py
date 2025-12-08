@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 import os
 from array import ArrayType
 from dataclasses import dataclass
@@ -14,7 +13,6 @@ from rlp.core.checkpointer import Checkpointer
 from rlp.core.logger import LoggerProtocol
 from rlp.core.buffer import ReplayBuffer
 from rlp.agent.base import AgentProtocol
-from rlp.pruning.base import PrunerProtocol
 from rlp.training.schedule import ScheduleProtocol
 
 @dataclass
@@ -77,9 +75,10 @@ class Trainer:
             ### Training
             metrics = {}
             batch = self.ctx.buffer.sample(self.cfg.batch_size)
+            agent_metrics = self.ctx.agent.update(batch)
 
-            for name, value in self.ctx.agent.update(batch):
-                metrics[f"charts/{name}"] = value
+            for metric in agent_metrics:
+                metrics[f"charts/{metric}"] = agent_metrics[metric]
 
             sparsity = self.ctx.agent.prune(global_step)
 
@@ -93,6 +92,7 @@ class Trainer:
 
             global_step += 1
 
+        self.ctx.agent.finished_training(global_step)
         self._save(step=global_step, epsilon=0.0)
         self.ctx.envs.close()
         self.ctx.logger.close()
