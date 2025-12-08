@@ -1,0 +1,17 @@
+defaults:
+  - minatar
+  - override pruning: gmp
+  - _self_
+
+pruning:
+  final_sparsity: 0.7
+  start_step: 1000000
+  end_step: 4000000
+
+wandb:
+  enabled: true
+  project: "rlp-25"
+  group: "minatar"
+  tags: ["minatar", "ddqn", "breakout", "gmp", "70"]
+  job_type: "train"
+  name: "minatar-breakout-ddqn-gmp-70"
