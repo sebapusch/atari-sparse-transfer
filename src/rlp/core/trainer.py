@@ -43,6 +43,8 @@ class Trainer:
         self.start_step = 0
 
     def train(self) -> None:
+        self._try_resume()
+
         envs = self.ctx.envs
         obs, _ = envs.reset(seed=self.cfg.seed)
 
