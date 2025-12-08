@@ -1,0 +1,20 @@
+defaults:
+  - minatar
+  - override pruning: gmp
+  - _self_
+
+pruning:
+  final_sparsity: 0.7
+  start_step: 1000000
+  end_step: 4000000
+
+env:
+  id: "MinAtar/space_invaders"
+
+wandb:
+  enabled: true
+  project: "rlp-25"
+  group: "minatar"
+  tags: ["minatar", "ddqn", "space_invaders", "gmp", "70"]
+  job_type: "train"
+  name: "minatar-space-invaders-ddqn-gmp-70"
