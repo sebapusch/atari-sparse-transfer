@@ -9,11 +9,15 @@ defaults:
 env:
   id: "MinAtar/breakout"
 
+train:
+  checkpoint_interval: 100000
+
 algorithm:
   network:
     encoder: "minatar_cnn"
     hidden_dim: 128
-  
+
+  tau: 0.99
   learning_starts: 5000
   batch_size: 32
   target_network_frequency: 1000

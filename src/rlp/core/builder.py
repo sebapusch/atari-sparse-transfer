@@ -1,5 +1,5 @@
 from gymnasium.vector import SyncVectorEnv
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 import torch.optim as optim
 import torch
