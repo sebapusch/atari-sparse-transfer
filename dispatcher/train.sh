@@ -4,8 +4,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=05:00:00
 #SBATCH --mem=32G
-#SBATCH --output=/scratch/$USER/logs/train_%A_%a.out
-#SBATCH --error=/scratch/$USER/logs/train_%A_%a.err
+#SBATCH --output=logs/train_%A_%a.out
+#SBATCH --error=logs/train_%A_%a.err
 
 cd /scratch/$USER/RLP-25
 source .venv/bin/activate
