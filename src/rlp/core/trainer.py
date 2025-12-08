@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import os
 from array import ArrayType
 from dataclasses import dataclass
 
 import torch
-import torch.nn.utils.prune as prune
 import numpy as np
 import gymnasium as gym
 
@@ -144,31 +142,30 @@ class Trainer:
         return self.ctx.agent.select_action(obs, epsilon=epsilon)
 
     def _log_episodic_metrics(self, step: int, infos: dict, epsilon: float) -> None:
-        episodic_return = None
-        episodic_length = None
+        returns = []
+        lengths = []
 
         if "episode" in infos:
-            # Gymnasium >= 1.0 vector env logging
-            # infos['episode'] is a dict of arrays, with '_episode' (or '_r') as mask
+            # Vectorized efficient check
             env_mask = infos.get("_episode", infos.get("_r"))
             if env_mask is not None:
-                for i in range(self.ctx.envs.num_envs):
-                    if env_mask[i]:
-                        episodic_return = infos["episode"]["r"][i]
-                        episodic_length = infos["episode"]["l"][i]
+                returns.extend(infos["episode"]["r"][env_mask])
+                lengths.extend(infos["episode"]["l"][env_mask])
+
         elif "final_info" in infos:
-            # Legacy Gymnasium logging
+            # Legacy loop
             for info in infos["final_info"]:
                 if info and "episode" in info:
-                    episodic_return = info["episode"]["r"]
-                    episodic_length = info["episode"]["l"]
+                    returns.append(info["episode"]["r"])
+                    lengths.append(info["episode"]["l"])
 
-        if episodic_return is None:
+        if not returns:
             return
 
+        # Log mean to capture trend of the batch
         self.ctx.logger.log_metrics({
-            "charts/episodic_return": episodic_return,
-            "charts/episodic_length": episodic_length,
+            "charts/episodic_return": np.mean(returns),
+            "charts/episodic_length": np.mean(lengths),
             "charts/epsilon": epsilon,
         }, step)
 
@@ -186,39 +183,4 @@ class Trainer:
                 real_next_obs[idx] = infos["final_observation"][idx]
 
         self.ctx.buffer.add(obs, real_next_obs, actions, rewards, terminations, infos)
-
-    def save_checkpoint(self, step: int) -> None:
-        """Save model checkpoint and optionally sparsity masks."""
-        path = self.cfg.output_dir
-        os.makedirs(path, exist_ok=True)
-        
-        # Determine prefix
-        prefix = ""
-        if self.cfg.wandb.name:
-            prefix = f"{self.cfg.wandb.name}_"
-        
-        # Save model weights
-        model_path = os.path.join(path, f"{prefix}model_{step}.pt")
-        torch.save(self.agent.network.state_dict(), model_path)
-        print(f"Saved model to {model_path}")
-        
-        # Save sparsity masks
-        if self.cfg.train.get("save_sparsity_mask", False):
-            masks = {}
-            
-            # Better approach for masks: iterate named_modules of the network
-            for name, module in self.agent.network.named_modules():
-                if prune.is_pruned(module):
-                    for hook in module._forward_pre_hooks.values():
-                        if isinstance(hook, prune.BasePruningMethod):
-                            # Usually the mask is stored as buffer named "{parameter_name}_mask"
-                            # The hook._tensor_name gives the parameter name (e.g. 'weight')
-                            mask_name = f"{name}.{hook._tensor_name}_mask"
-                            mask = getattr(module, hook._tensor_name + "_mask")
-                            masks[mask_name] = mask.cpu()
-            
-            if masks:
-                mask_path = os.path.join(path, f"{prefix}masks_{step}.pt")
-                torch.save(masks, mask_path)
-                print(f"Saved sparsity masks to {mask_path}")
 
