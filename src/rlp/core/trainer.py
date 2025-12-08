@@ -128,7 +128,10 @@ class Trainer:
 
         print(f"🔄 Resuming training from step {state['step']}...")
         self.ctx.agent.load_state_dict(state['agent'])
-        self.cfg = TrainingConfig(**state['cfg'])
+        if isinstance(state['cfg'], dict):
+            self.cfg = TrainingConfig(**state['cfg'])
+        else:
+            self.cfg = state['cfg']
         self.start_step = state['step'] + 1
 
     def _get_actions(self, obs: np.ndarray, step: int, epsilon: float) -> np.ndarray:

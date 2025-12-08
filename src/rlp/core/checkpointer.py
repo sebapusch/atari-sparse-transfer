@@ -109,7 +109,14 @@ class Checkpointer:
 
         # C. Load the file
         if filepath:
-            return torch.load(filepath, map_location=device)
+            # Local import to prevent circular dependency
+            from rlp.core.trainer import TrainingConfig
+            try:
+                with torch.serialization.safe_globals([TrainingConfig]):
+                    return torch.load(filepath, map_location=device)
+            except AttributeError:
+                # Fallback for older PyTorch versions without safe_globals
+                 return torch.load(filepath, map_location=device)
 
         print("🆕 Checkpointer: No checkpoint found. Starting fresh.")
         return None
