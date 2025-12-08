@@ -8,68 +8,20 @@ from typing import Dict, Optional, List, Tuple
 
 from rlp.pruning.base import PrunerProtocol
 from rlp.pruning.scheduler import SparsityScheduler
+from rlp.pruning.utils import get_prunable_modules, calculate_sparsity
+
 
 class BasePruner(PrunerProtocol):
     """
     Base Pruner using torch.nn.utils.prune.
     """
-    def __init__(self, scheduler: Optional[SparsityScheduler] = None) -> None:
+    def __init__(self, scheduler: SparsityScheduler | None = None) -> None:
         self.scheduler = scheduler
         self.prunable_types = (nn.Linear, nn.Conv2d)
 
-    def update(self, model: nn.Module, step: int) -> Dict[str, float]:
+    def prune(self, model: nn.Module, step: int) -> float | None:
         """Update masks based on step."""
-        return {}
-
-    def apply(self, model: nn.Module) -> None:
-        """
-        Apply masks to the model. 
-        With torch.nn.utils.prune, this is handled automatically via hooks.
-        We can use this to make pruning permanent if needed, but for now it's a no-op.
-        """
-        pass
-
-    def on_step(self, model: nn.Module, step: int) -> None:
-        """Called every step. Not needed for torch.prune as masks are persistent."""
-        pass
-
-    def get_prunable_modules(self, model: nn.Module) -> List[Tuple[nn.Module, str]]:
-        modules = []
-        for name, module in model.named_modules():
-            if isinstance(module, self.prunable_types):
-                modules.append((module, 'weight'))
-        return modules
-        
-    def calculate_sparsity(self, model: nn.Module) -> float:
-        total_params = 0
-        zero_params = 0
-        for module, name in self.get_prunable_modules(model):
-            if prune.is_pruned(module):
-                mask = getattr(module, name + "_mask")
-                total_params += mask.numel()
-                zero_params += (mask == 0).sum().item()
-            else:
-                total_params += getattr(module, name).numel()
-        
-        return zero_params / total_params if total_params > 0 else 0.0
-
-    def apply_structure(self, model: nn.Module) -> None:
-        """
-        Apply identity pruning to the model to ensure it has the same structure 
-        (weight_orig + masks) as a pruned model.
-        """
-        parameters_to_prune = self.get_prunable_modules(model)
-        if not parameters_to_prune:
-            return
-            
-        # Apply identity pruning (amount=0.0)
-        # This registers the hooks and creates weight_orig/weight_mask
-        # without changing the values or sparsity.
-        prune.global_unstructured(
-            parameters_to_prune,
-            pruning_method=prune.L1Unstructured,
-            amount=0.0,
-        )
+        return None
 
 
 class GMPPruner(BasePruner):
@@ -80,26 +32,21 @@ class GMPPruner(BasePruner):
         super().__init__(scheduler)
         self.update_frequency = update_frequency
 
-    def update(self, model: nn.Module, step: int) -> Dict[str, float]:
+    def prune(self, model: nn.Module, step: int) -> float | None:
         if step % self.update_frequency != 0:
-            return {}
+            return None
 
         target_sparsity = self.scheduler.get_sparsity(step, 0)
-        
-        # GMP is monotonic. We prune to `target_sparsity`.
-        # torch.prune.global_unstructured prunes the *currently unpruned* parameters if we call it repeatedly?
-        # No, `amount` is fraction of *current* parameters if float, or absolute number if int.
-        # But we want target sparsity of the *original* model.
         
         # To achieve target global sparsity S:
         # If we use `amount=S` (float), it prunes S fraction of *current* weights.
         # If we want total sparsity S_total, and current is S_curr:
         # We need to prune (S_total - S_curr) / (1 - S_curr) of remaining weights.
         
-        current_sparsity = self.calculate_sparsity(model)
+        current_sparsity = calculate_sparsity(model)
         if target_sparsity <= current_sparsity:
-            return {"sparsity": current_sparsity}
-            
+            return None
+
         # Calculate amount to prune from remaining
         if current_sparsity >= 1.0:
             amount_to_prune = 0.0
@@ -108,16 +55,18 @@ class GMPPruner(BasePruner):
             
         # Clamp for safety
         amount_to_prune = max(0.0, min(1.0, amount_to_prune))
-        
-        if amount_to_prune > 0:
-            parameters_to_prune = self.get_prunable_modules(model)
-            prune.global_unstructured(
-                parameters_to_prune,
-                pruning_method=prune.L1Unstructured,
-                amount=amount_to_prune,
-            )
+
+        if amount_to_prune <= 0.0:
+            return None
+
+        parameters_to_prune = get_prunable_modules(model)
+        prune.global_unstructured(
+            parameters_to_prune,
+            pruning_method=prune.L1Unstructured,
+            amount=amount_to_prune,
+        )
             
-        return {"sparsity": self.calculate_sparsity(model)}
+        return calculate_sparsity(model)
 
 
 class LTHPruner(BasePruner):

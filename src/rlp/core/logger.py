@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     import wandb
@@ -13,12 +13,12 @@ class LoggerProtocol(abc.ABC):
     """Protocol for logging metrics and configuration."""
 
     @abc.abstractmethod
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
         """Log a dictionary of scalar metrics."""
         pass
 
     @abc.abstractmethod
-    def log_config(self, config: Dict[str, Any]) -> None:
+    def log_config(self, config: dict[str, Any]) -> None:
         """Log configuration parameters."""
         pass
 
@@ -31,12 +31,10 @@ class LoggerProtocol(abc.ABC):
 class ConsoleLogger(LoggerProtocol):
     """Simple logger that prints to stdout."""
 
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
-        # Only print a summary or specific keys to avoid spam
-        # For now, just print everything for debugging if needed, or rely on TQDM in trainer
-        pass
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
+        print(f"[{step}] {metrics}")
 
-    def log_config(self, config: Dict[str, Any]) -> None:
+    def log_config(self, config: dict[str, Any]) -> None:
         print("Configuration:")
         print(config)
 
@@ -47,44 +45,14 @@ class ConsoleLogger(LoggerProtocol):
 class WandbLogger(LoggerProtocol):
     """Logger implementation using Weights & Biases."""
 
-    def __init__(
-        self,
-        project: Optional[str] = None,
-        entity: Optional[str] = None,
-        group: Optional[str] = None,
-        tags: Optional[list[str]] = None,
-        job_type: Optional[str] = None,
-        name: Optional[str] = None,
-        config: Optional[Dict[str, Any]] = None,
-        enabled: bool = True,
-    ) -> None:
-        self.enabled = enabled
-        if self.enabled:
-            if wandb is None:
-                raise ImportError("wandb is not installed. Please install it with `pip install wandb`.")
-            
-            if not group:
-                raise ValueError("wandb.group is required when wandb is enabled. Please specify a group name (e.g., 'dqn-atari').")
-            
-            wandb.init(
-                project=project,
-                entity=entity,
-                group=group,
-                tags=tags,
-                job_type=job_type,
-                name=name,
-                config=config,
-                reinit=True,
-            )
+    def __init__(self, run: wandb.Run) -> None:
+        self.run = run
 
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
-        if self.enabled:
-            wandb.log(metrics, step=step)
+    def log_metrics(self, metrics: dict[str, float], step: int | None = None) -> None:
+        self.run.log(metrics, step=step)
 
-    def log_config(self, config: Dict[str, Any]) -> None:
-        if self.enabled:
-            wandb.config.update(config, allow_val_change=True)
+    def log_config(self, config: dict[str, Any]) -> None:
+        self.run.config.update(config, allow_val_change=True)
 
     def close(self) -> None:
-        if self.enabled:
-            wandb.finish()
+        self.run.finish()

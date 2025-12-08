@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import copy
 import random
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -12,88 +13,45 @@ import torch.optim as optim
 
 from rlp.agent.base import AgentProtocol
 from rlp.components.network import QNetwork
+from rlp.core.buffer import ReplayBufferSamples
+from rlp.pruning.base import PrunerProtocol
+
+
+@dataclass
+class DQNConfig:
+    num_actions: int
+    gamma: float
+    tau: float
+    prune_encoder_only: bool = False
 
 
 class DQNAgent(AgentProtocol):
-    """
-    DQN Agent with support for Double DQN.
-    """
-
     def __init__(
         self,
         network: QNetwork,
         optimizer: optim.Optimizer,
-        gamma: float = 0.99,
-        tau: float = 1.0, # 1.0 = hard update
-        target_network_frequency: int = 1000,
-        double_dqn: bool = False,
-        device: str = "cpu",
+        pruner: PrunerProtocol | None,
+        cfg: DQNConfig,
+        device: torch.Device,
     ) -> None:
         self.device = torch.device(device)
         self.network = network.to(self.device)
-        self.target_network = copy.deepcopy(network).to(self.device)
         self.optimizer = optimizer
-        
-        self.gamma = gamma
-        self.tau = tau
-        self.target_network_frequency = target_network_frequency
-        self.double_dqn = double_dqn
-        
+        self.pruner = pruner
+        self.cfg = cfg
+
+        self.target_network = copy.deepcopy(network).to(self.device)
+
         self.steps = 0
 
-    def get_action(self, obs: np.ndarray, epsilon: float = 0.0) -> np.ndarray:
-        """
-        Select action using epsilon-greedy policy.
-        obs: (B, ...) or (...)
-        """
-        # Handle single observation vs batch
-        if obs.ndim == 3: # (C, H, W) -> (1, C, H, W)
-             obs = np.expand_dims(obs, axis=0)
-        
-        # Epsilon-greedy
-        if random.random() < epsilon:
-            return np.random.randint(0, self.num_actions, size=obs.shape[0])
-
-        # Do the forward pass first.
-        with torch.no_grad():
-            q_values = self.network(torch.Tensor(obs).to(self.device))
-            actions = torch.argmax(q_values, dim=1).cpu().numpy()
-            
-        return actions
-
-    def __init__(
-        self,
-        network: QNetwork,
-        optimizer: optim.Optimizer,
-        num_actions: int,
-        gamma: float = 0.99,
-        tau: float = 1.0,
-        target_network_frequency: int = 1000,
-        double_dqn: bool = False,
-        device: str = "cpu",
-    ) -> None:
-        self.device = torch.device(device)
-        self.network = network.to(self.device)
-        self.target_network = copy.deepcopy(network).to(self.device)
-        self.optimizer = optimizer
-        self.num_actions = num_actions
-        
-        self.gamma = gamma
-        self.tau = tau
-        self.target_network_frequency = target_network_frequency
-        self.double_dqn = double_dqn
-        
-        self.steps = 0
-
-    def get_action(self, obs: np.ndarray, epsilon: float = 0.0) -> np.ndarray:
+    def select_action(self, obs: np.ndarray, epsilon: float = 0.0) -> np.ndarray:
         if obs.ndim == 3:
              obs = np.expand_dims(obs, axis=0)
         
         batch_size = obs.shape[0]
-        
-        # Random actions
+
         if random.random() < epsilon:
-            return np.random.randint(0, self.num_actions, size=batch_size)
+            return np.random.randint(0, self.cfg.num_actions, size=batch_size)
         
         with torch.no_grad():
             q_values = self.network(torch.Tensor(obs).to(self.device))
@@ -101,51 +59,87 @@ class DQNAgent(AgentProtocol):
         
         return actions
 
-    def update(self, batch: Any) -> Dict[str, float]:
-        """
-        batch: ReplayBuffer sample (observations, actions, rewards, next_observations, dones)
-        """
+    def update(self, batch: ReplayBufferSamples) -> dict[str, float]:
         self.steps += 1
-        
-        # Unpack batch (assuming CleanRL ReplayBuffer structure or similar namedtuple/dataclass)
-        # We'll assume attributes: observations, actions, rewards, next_observations, dones
-        obs = batch.observations.to(self.device)
-        actions = batch.actions.to(self.device)
-        rewards = batch.rewards.flatten().to(self.device)
-        next_obs = batch.next_observations.to(self.device)
-        dones = batch.dones.flatten().to(self.device)
 
-        with torch.no_grad():
-            if self.double_dqn:
-                # Double DQN: selection with online, evaluation with target
-                next_q_values = self.network(next_obs)
-                next_actions = torch.argmax(next_q_values, dim=1)
-                target_next_q_values = self.target_network(next_obs)
-                target_max = target_next_q_values.gather(1, next_actions.unsqueeze(1)).squeeze()
-            else:
-                # Standard DQN
-                target_max, _ = self.target_network(next_obs).max(dim=1)
-            
-            td_target = rewards + self.gamma * target_max * (1 - dones)
+        batch = batch.to(self.device)
 
-        old_val = self.network(obs).gather(1, actions.unsqueeze(1)).squeeze()
+        td_target = self._compute_td_target(batch.rewards, batch.next_observations, batch.dones)
+
+        old_val = self.network(batch.observations).gather(1, batch.actions.unsqueeze(1)).squeeze()
         loss = F.mse_loss(td_target, old_val)
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
-        # Target network update
-        if self.steps % self.target_network_frequency == 0:
-            for target_param, param in zip(self.target_network.parameters(), self.network.parameters()):
-                target_param.data.copy_(
-                    self.tau * param.data + (1.0 - self.tau) * target_param.data
-                )
+        self._update_target_network()
 
         return {
             "loss": loss.item(),
             "q_values": old_val.mean().item(),
         }
+
+    def prune(self, step: int) -> float | None:
+        if self.pruner is not None:
+            return self.pruner.prune(self.network, step)
+
+        return None
+
+    def _update_target_network(self) -> None:
+        """
+        Mask aware target network update.
+        Assumes self.target_network is structurally identical to self.network
+        BUT is not registered with pruning hooks (i.e., it is a "clean" container).
+        """
+        # 1. Get all buffers (needed for masks AND batchnorm stats)
+        source_buffers = dict(self.network.named_buffers())
+        target_buffers = dict(self.target_network.named_buffers())
+
+        # 2. Update Parameters (Polyak Averaging)
+        target_params = dict(self.target_network.named_parameters())
+
+        for src_name, src_param in self.network.named_parameters():
+            # Determine the effective name in the target network
+            if src_name.endswith("_orig"):
+                # Pruned layer: Reconstruct the effective weight
+                mask_name = src_name.replace("_orig", "_mask")
+                target_name = src_name.replace("_orig", "")
+
+                if mask_name in source_buffers:
+                    # W_eff = W_orig * Mask
+                    source_data = src_param.data * source_buffers[mask_name]
+                else:
+                    # Fallback if mask is missing (unlikely if named _orig)
+                    source_data = src_param.data
+            else:
+                # Unpruned layer
+                target_name = src_name
+                source_data = src_param.data
+
+            # Safety check: Ensure target exists
+            if target_name in target_params:
+                # In-place Polyak averaging: param_target = tau * param_src + (1-tau) * param_target
+                # torch.lerp is equivalent to: input + weight * (end - input)
+                # We want: tau * src + (1-tau) * target
+                # which matches lerp(target, src, tau)
+                target_params[target_name].data.lerp_(source_data, self.cfg.tau)
+
+        # 3. Update Buffers (Hard Copy for BatchNorm, etc.)
+        # We iterate source buffers to copy running_mean/var, but we must skip the masks
+        # because the target network (unpruned) doesn't need/have mask buffers.
+        for name, buffer in source_buffers.items():
+            if not name.endswith("_mask") and name in target_buffers:
+                target_buffers[name].data.copy_(buffer.data)
+
+    def _compute_td_target(self,
+                           rewards: torch.Tensor,
+                           next_obs: torch.Tensor,
+                           dones: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            target_max, _ = self.target_network(next_obs).max(dim=1)
+
+            return rewards + self.cfg.gamma * target_max * (1 - dones)
 
     def state_dict(self) -> Dict[str, Any]:
         return {

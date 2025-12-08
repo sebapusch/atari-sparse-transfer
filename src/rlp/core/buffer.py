@@ -11,6 +11,16 @@ class ReplayBufferSamples(NamedTuple):
     dones: torch.Tensor
     rewards: torch.Tensor
 
+    def to(self, device: torch.Device) -> ReplayBufferSamples:
+        return ReplayBufferSamples(
+            observations=self.observations.to(device),
+            actions=self.actions.to(device),
+            next_observations=self.next_observations.to(device),
+            dones=self.dones.to(device),
+            rewards=self.rewards.to(device),
+        )
+
+
 class ReplayBuffer:
     """
     Replay Buffer with optional memory optimization (Lazy Frames).

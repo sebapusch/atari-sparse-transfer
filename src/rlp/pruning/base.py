@@ -9,21 +9,9 @@ class PrunerProtocol(abc.ABC):
     """Protocol for Pruners."""
 
     @abc.abstractmethod
-    def apply(self, model: nn.Module) -> None:
-        """Apply masks to the model (zero out pruned weights)."""
-        pass
-
-    @abc.abstractmethod
-    def update(self, model: nn.Module, step: int) -> Dict[str, float]:
-        """Update masks based on step/metrics."""
-        pass
-
-    @abc.abstractmethod
-    def on_step(self, model: nn.Module, step: int) -> None:
-        """Callback for every step (e.g. for dynamic sparsity)."""
-        pass
-
-    @abc.abstractmethod
-    def apply_structure(self, model: nn.Module) -> None:
-        """Apply pruning structure (e.g. identity pruning) to match another model."""
+    def prune(self, model: nn.Module, step: int) -> float | None:
+        """
+        Prune the model. Returns the sparsity level. **Returns None values
+        if no pruning was applied.**
+        """
         pass

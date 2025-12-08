@@ -2,34 +2,29 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import os
 
-from rlp.core.logger import WandbLogger, ConsoleLogger
+from rlp.core.builder import Builder
+from rlp.core.logger import WandbLogger, ConsoleLogger, LoggerProtocol
 from rlp.core.trainer import Trainer
+
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="config")
 def main(cfg: DictConfig) -> None:
-    # Resolve config
     print(OmegaConf.to_yaml(cfg))
-    
-    # Setup Logger
-    if cfg.wandb.enabled:
-        logger = WandbLogger(
-            project=cfg.wandb.project,
-            entity=cfg.wandb.entity,
-            group=cfg.wandb.group,
-            tags=cfg.wandb.tags,
-            job_type=cfg.wandb.job_type,
-            name=cfg.wandb.name,
-            config=OmegaConf.to_container(cfg, resolve=True),
-            enabled=True
-        )
-    else:
-        logger = ConsoleLogger()
         
-    # Setup Trainer
-    trainer = Trainer(cfg, logger)
+    trainer = build_trainer(cfg)
     
     # Train
     trainer.train()
+
+def build_trainer(config: DictConfig) -> Trainer:
+    builder = Builder(config)
+    
+    logger = builder.build_logger()
+    ctx = builder.build_training_context(logger)
+    training_config = builder.build_training_config()
+    checkpointer = builder.build_checkpointer()
+
+    return Trainer(ctx, training_config, checkpointer)
 
 if __name__ == "__main__":
     main()
