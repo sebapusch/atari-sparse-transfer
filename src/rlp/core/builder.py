@@ -22,7 +22,7 @@ from rlp.pruning.base import PrunerProtocol
 from rlp.pruning.pruner import GMPPruner
 from rlp.pruning.scheduler import LinearScheduler, CubicScheduler
 from rlp.training.schedule import LinearSchedule, ScheduleProtocol
-from rlp.core.trainer import TrainingConfig, TrainingContext, Trainer
+from rlp.core.trainer import TrainingConfig, TrainingContext
 from rlp.core.checkpointer import Checkpointer
 from rlp.core.logger import LoggerProtocol, WandbLogger, ConsoleLogger
 
@@ -35,8 +35,8 @@ class Builder:
                                        self.config.device == "cuda")
                                    else "cpu")
 
-    def build_agent(self, num_actions: int, pruner: PrunerProtocol | None) -> AgentProtocol:
-        network = self.build_network(num_actions)
+    def build_agent(self, num_actions: int, input_channels: int, pruner: PrunerProtocol | None) -> AgentProtocol:
+        network = self.build_network(num_actions, input_channels)
         optimizer = optim.Adam(network.parameters(),
             lr=self.config.algorithm.optimizer.lr,
             eps=self.config.algorithm.optimizer.eps)
@@ -66,12 +66,12 @@ class Builder:
 
         return agent
 
-    def build_network(self, num_actions: int) -> QNetwork:
+    def build_network(self, num_actions: int, input_channels: int) -> QNetwork:
         match self.config.algorithm.network.encoder:
             case 'nature_cnn':
-                encoder = NatureCNN(input_channels=4 if self.config.env.grayscale else 3)
+                encoder = NatureCNN(input_channels=input_channels)
             case 'minatar_cnn':
-                encoder = MinAtarCNN(input_channels=num_actions)
+                encoder = MinAtarCNN(input_channels=input_channels)
             case _:
                 raise ValueError(f"Unknown encoder: {self.config.algorithm.network.encoder}")
 
@@ -208,9 +208,10 @@ class Builder:
     def build_training_context(self, logger: LoggerProtocol) -> TrainingContext:
         envs = self.build_envs()
         num_actions = envs.single_action_space.n
+        input_channels = envs.single_observation_space.shape[0]
         
         pruner = self.build_pruner()
-        agent = self.build_agent(num_actions, pruner=pruner)
+        agent = self.build_agent(num_actions, input_channels, pruner=pruner)
         
         return TrainingContext(
             agent=agent,
