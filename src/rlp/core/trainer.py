@@ -70,10 +70,8 @@ class Trainer:
 
             obs = next_obs
 
-            if global_step <= self.cfg.learning_starts:
-                continue
-
-            if global_step % self.cfg.train_frequency != 0:
+            if not self._is_training_step(global_step):
+                global_step += 1
                 continue
 
             ### Training
@@ -99,6 +97,9 @@ class Trainer:
         self.ctx.envs.close()
         self.ctx.logger.close()
 
+    def _is_training_step(self, step: int) -> bool:
+        return (step >= self.cfg.learning_starts and
+                step % self.cfg.train_frequency == 0)
 
     def _save(self, step: int, epsilon: float) -> None:
         self.checkpointer.save(

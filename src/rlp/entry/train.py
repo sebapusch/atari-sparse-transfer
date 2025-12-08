@@ -1,9 +1,7 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import os
 
 from rlp.core.builder import Builder
-from rlp.core.logger import WandbLogger, ConsoleLogger, LoggerProtocol
 from rlp.core.trainer import Trainer
 
 
@@ -12,6 +10,8 @@ def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
         
     trainer = build_trainer(cfg)
+
+    print('Initialized trainer, starting...')
     
     # Train
     trainer.train()
