@@ -45,6 +45,7 @@ class Builder:
             num_actions=num_actions,
             gamma=self.config.algorithm.gamma,
             tau=self.config.algorithm.tau,
+            target_network_frequency=self.config.algorithm.target_network_frequency,
             prune_encoder_only=self.config.algorithm.get('prune_encoder_only', False)
         )
 
