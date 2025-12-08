@@ -18,7 +18,7 @@ train_frequency: 4
 epsilon:
   start: 1.0
   end: 0.01
-  decay_fraction: 0.10 # Fraction of total timesteps
+  decay_fraction: 0.1 # Fraction of total timesteps
 
 # Optimizer
 optimizer:

@@ -99,7 +99,7 @@ class Builder:
                     if self.config.pruning.end_step is not None \
                     else self.config.train.total_timesteps
 
-                match self.config.scheduler:
+                match self.config.pruning.scheduler:
                     case 'linear':
                         scheduler = LinearScheduler(
                             self.config.pruning.initial_sparsity,
