@@ -14,6 +14,7 @@ from rlp.agent.base import AgentProtocol
 from rlp.components.network import QNetwork
 from rlp.core.buffer import ReplayBufferSamples
 from rlp.pruning.base import PrunerProtocol
+from rlp.pruning.utils import calculate_sparsity
 
 
 @dataclass
@@ -30,15 +31,16 @@ class DQNAgent(AgentProtocol):
         self,
         network: QNetwork,
         optimizer: optim.Optimizer,
-        pruner: PrunerProtocol | None,
+        pruner: PrunerProtocol | dict[str, PrunerProtocol] | None,
         cfg: DQNConfig,
         device: torch.Device,
     ) -> None:
         self.device = torch.device(device)
         self.network = network.to(self.device)
         self.optimizer = optimizer
-        self.pruner = pruner
+        self._set_pruner(pruner)
         self.cfg = cfg
+
 
         self.target_network = copy.deepcopy(network).to(self.device)
 
@@ -81,10 +83,27 @@ class DQNAgent(AgentProtocol):
         self._update_target_network()
 
     def prune(self, step: int) -> float | None:
-        if self.pruner is not None:
-            return self.pruner.prune(self.network, step)
+        if self.pruner is None:
+            return None
 
-        return None
+        if isinstance(self.pruner, dict):
+            # Prune components individually
+            if "encoder" in self.pruner:
+                self.pruner["encoder"].prune(self.network.encoder, step)
+            if "head" in self.pruner:
+                self.pruner["head"].prune(self.network.head, step)
+            
+            return calculate_sparsity(self.network)
+
+        # Single pruner behavior
+        return self.pruner.prune(self.network, step)
+
+    def _set_pruner(self, pruner: PrunerProtocol | dict[str, PrunerProtocol] | None) -> None:
+        if isinstance(pruner, dict):
+            for key in pruner.keys():
+                if key not in ["encoder", "head"]:
+                    raise ValueError(f"Invalid pruner key: {key}. Allowed keys: 'encoder', 'head'")
+        self.pruner = pruner
 
     def _update_target_network(self) -> None:
         """
