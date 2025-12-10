@@ -24,7 +24,10 @@ from rlp.pruning.scheduler import LinearScheduler, CubicScheduler
 from rlp.training.schedule import LinearSchedule, ScheduleProtocol
 from rlp.core.trainer import TrainingConfig, TrainingContext
 from rlp.core.checkpointer import Checkpointer
+
 from rlp.core.logger import LoggerProtocol, WandbLogger, ConsoleLogger
+import torch.nn.utils.prune as prune
+
 
 
 class Builder:
@@ -35,11 +38,39 @@ class Builder:
                                        self.config.device == "cuda")
                                    else "cpu")
 
+    @staticmethod
+    def fetch_remote_config(run_id: str, entity: str | None = None, project: str | None = None) -> DictConfig:
+        """
+        Fetches the configuration of a specific run from WandB.
+        """
+        if wandb is None:
+            raise ImportError("WandB is not installed/active.")
+        
+        # Resolve entity/project if not provided (requires active run or defaults)
+        # If no active run, user must likely provide them or rely on WandB defaults if authenticated
+        path = f"{entity}/{project}/{run_id}" if entity and project else run_id
+        
+        try:
+            api = wandb.Api()
+            run = api.run(path)
+            # remote config is in run.config
+            # We need to convert it back to OmegaConf
+            # Note: run.config is a dict where values might be {'value': X, 'desc': ...} or just X depending on API version?
+            # Standard api.run().config returns a simple dict of values.
+            return OmegaConf.create(run.config)
+        except Exception as e:
+            raise ValueError(f"Failed to fetch config for run {run_id}: {e}")
+
+
     def build_agent(self, num_actions: int, input_channels: int, pruner: PrunerProtocol | None) -> AgentProtocol:
         network = self.build_network(num_actions, input_channels)
         optimizer = optim.Adam(network.parameters(),
             lr=self.config.algorithm.optimizer.lr,
             eps=self.config.algorithm.optimizer.eps)
+
+        # Transfer Learning: Load weights if configured
+        if self.config.get("transfer", None) and self.config.transfer.source_run_id:
+            self._apply_transfer(network, self.config.transfer)
 
         dqn_config = DQNConfig(
             num_actions=num_actions,
@@ -222,3 +253,97 @@ class Builder:
             logger=logger,
             epsilon_scheduler=self.build_epsilon_schedule()
         )
+
+    def _apply_transfer(self, network: QNetwork, transfer_config: DictConfig) -> None:
+        """
+        Loads parameters from a source run into the current network.
+        Handles mask restoration for pruned models.
+        """
+        run_id = transfer_config.source_run_id
+        alias = transfer_config.source_artifact_alias
+        
+        print(f"🚀 Transfer: Initializing from run {run_id} ({alias})")
+        
+        checkpoint_path = Checkpointer.download_checkpoint(
+            run_id=run_id,
+            artifact_alias=alias
+        )
+        
+        if not checkpoint_path:
+            print(f"⚠️ Transfer: Failed to download checkpoint. skipping transfer.")
+            return
+
+        # Load state dict (safely)
+        try:
+             # Use safe_globals if available, or just load
+            from rlp.core.trainer import TrainingConfig
+            if hasattr(torch.serialization, 'safe_globals'):
+                with torch.serialization.safe_globals([TrainingConfig]):
+                    state_dict = torch.load(checkpoint_path, map_location=self.device)
+            else:
+                state_dict = torch.load(checkpoint_path, map_location=self.device)
+        except Exception as e:
+            print(f"⚠️ Transfer: Error loading checkpoint: {e}")
+            return
+            
+        # Extract network state
+        if "network" not in state_dict:
+            print("⚠️ Transfer: Checkpoint does not contain 'network' key.")
+            return
+            
+        source_net_state = state_dict["network"]
+        
+        # Load Encoder
+        if transfer_config.load_encoder:
+            print(f"📥 Transfer: Loading Encoder weights...")
+            self._load_module_with_masks(network.encoder, source_net_state, prefix="encoder.")
+            
+        # Load Head
+        if transfer_config.load_head:
+            print(f"📥 Transfer: Loading Head weights...")
+            self._load_module_with_masks(network.head, source_net_state, prefix="head.")
+
+    def _load_module_with_masks(self, module: torch.nn.Module, source_state_dict: dict, prefix: str) -> None:
+        """
+        Loads state_dict into module, applying pruning masks if detected in source.
+        """
+        # 1. Detect if source has masks for this module
+        # Keys in source_state_dict are like "encoder.0.weight_orig", "encoder.0.weight_mask"
+        
+        # Iterate over submodules of the target module to see if they match source keys
+        for name, submodule in module.named_modules():
+            # Construct full key path in source
+            # e.g. if prefix is "encoder.", and submodule name is "0", full is "encoder.0"
+            if name:
+                full_name = f"{prefix}{name}"
+            else:
+                full_name = prefix.rstrip(".") # Top level?
+            
+            # Check for mask presence
+            weight_mask_key = f"{full_name}.weight_mask"
+            if weight_mask_key in source_state_dict:
+                print(f"   ✂️ Restoring mask for {full_name}...")
+                
+                # We simply apply identity pruning to create the _mask and _orig buffers
+                # This makes the module 'pruned' and compatible with the incoming state dict
+                prune.identity(submodule, 'weight')
+                
+        # 2. Load the weights (strict=False because we might be loading only a subset)
+        # We need to filter source_state_dict to only include keys for this module
+        # to avoid "unexpected key" errors if we used strict=True, but strict=False is easier.
+        # However, to be safe, we can just load.
+        
+        # Filter keys that start with prefix
+        module_state = {k.replace(prefix, ""): v 
+                        for k, v in source_state_dict.items() 
+                        if k.startswith(prefix)}
+        
+        missing, unexpected = module.load_state_dict(module_state, strict=False)
+        
+        if missing:
+            # Filter out expected missing keys (like if we didn't load head)
+            # But here we are loading INTO 'module' (e.g. encoder).
+            # So missing keys here are actual missing params in encoder.
+            print(f"   ⚠️ Missing keys in {prefix[:-1]}: {missing}")
+        # unexpected keys might be from other parts of network if we didn't filter perfect, 
+        # but we filtered by prefix so should be fine.

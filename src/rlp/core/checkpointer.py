@@ -140,3 +140,44 @@ class Checkpointer:
                     os.remove(f)
                 except OSError:
                     pass
+
+    @staticmethod
+    def download_checkpoint(run_id: str,
+                            artifact_alias: str = 'latest',
+                            download_root: str = '/tmp/checkpoints',
+                            entity: Optional[str] = None,
+                            project: Optional[str] = None) -> str | None:
+        """
+        Static helper to fetch a checkpoint from a remote WandB run.
+        """
+        if wandb is None or wandb.run is None:
+            print("⚠️ Checkpointer: WandB not active, cannot download checkpoint.")
+            return None
+
+        # Determine entity/project from current run if not provided
+        entity = entity or wandb.run.entity
+        project = project or wandb.run.project
+
+        try:
+            print(f"🔄 Checkpointer: Fetching remote artifact {entity}/{project}/model-{run_id}:{artifact_alias}...")
+            artifact_path = f"{entity}/{project}/model-{run_id}:{artifact_alias}"
+            artifact = wandb.use_artifact(artifact_path)
+
+            # Download returns the directory path
+            save_dir = os.path.join(download_root, run_id)
+            os.makedirs(save_dir, exist_ok=True)
+            download_dir = artifact.download(root=save_dir)
+
+            # Find latest in that dir
+            filepath = _latest_in_dir(download_dir)
+            
+            if filepath:
+                print(f"✅ Checkpointer: Downloaded checkpoint to: {filepath}")
+                return filepath
+            else:
+                print(f"⚠️ Checkpointer: No .pt files found in downloaded artifact.")
+                return None
+
+        except (wandb.errors.CommError, wandb.errors.UsageError) as e:
+            print(f"⚠️ Checkpointer: WandB download failed ({e}).")
+            return None

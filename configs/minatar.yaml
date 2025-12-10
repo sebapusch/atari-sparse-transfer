@@ -1,15 +1,12 @@
 defaults:
-  - config
+  - algorithm: ddqn
+  - env: minatar
+  - pruning: none
+  - train: default
   - _self_
-  - override algorithm: ddqn
-  - override env: minatar
-  - override pruning: none
-  - override train: default
-
-env:
-  id: "MinAtar/breakout"
 
 train:
+  total_timesteps: 5000000
   checkpoint_interval: 100000
 
 algorithm:
@@ -32,6 +29,5 @@ wandb:
   enabled: true
   project: "rlp-25"
   group: "minatar"
-  tags: ["minatar", "ddqn", "breakout"]
+  tags: ["minatar", "ddqn"]
   job_type: "train"
-  name: "minatar-ddqn"

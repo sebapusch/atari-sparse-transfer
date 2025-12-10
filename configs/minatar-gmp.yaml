@@ -1,0 +1,11 @@
+defaults:
+  - minatar
+  - override pruning: gmp
+  - _self_
+
+pruning:
+  start_step: 1000000
+  end_step: 4000000
+
+wandb:
+  tags: ${wandb.tags} + ["gmp"]

@@ -1,0 +1,69 @@
+# MinAtar Dense Baseline
+# Self-contained configuration for MinAtar Dense Baseline
+
+defaults:
+  - _self_
+
+# Environment
+env:
+  id: "MinAtar/Breakout-v0" # Default, or can be overridden
+  num_envs: 1
+  capture_video: false
+  frame_stack: 1 # MinAtar typically doesn't need much stacking if fully observable, but standard is often 4? MinAtar has channels for history? Actually MinAtar gives (N, N, C).
+  # MinAtar already includes history in channels usually?
+  # Checking minatar.yaml, it didn't specify frame_stack, so default 1.
+
+# Algorithm: DDQN
+algorithm:
+  name: "ddqn"
+  network:
+    encoder: "minatar_cnn"
+    head: "linear"
+    hidden_dim: 128
+  
+  # Hyperparameters (Merged from ddqn.yaml and minatar.yaml overrides)
+  gamma: 0.99
+  tau: 1.0
+  target_network_frequency: 1000
+  batch_size: 32
+  learning_starts: 5000 # minatar.yaml override
+  train_frequency: 1    # minatar.yaml override (important for MinAtar)
+  
+  epsilon:
+    start: 1.0
+    end: 0.01
+    decay_fraction: 0.1
+  
+  optimizer:
+    lr: 1e-4
+    eps: 1e-8
+
+# Training
+train:
+  total_timesteps: 5000000
+  checkpoint_interval: 100000
+  buffer_size: 100000 # Default default
+
+# Pruning: None
+pruning:
+  method: "none"
+
+# Global
+seed: 1
+device: "cuda"
+output_dir: "outputs/minatar-dense-baseline"
+
+# W&B
+wandb:
+  enabled: true
+  project: "rlp-25"
+  group: "minatar-dense"
+  tags: ["minatar", "dense", "baseline"]
+  job_type: "train"
+  name: "minatar-dense"
+
+# Sweep Configuration
+sweep:
+  - seed: 1
+  - seed: 2
+  - seed: 3

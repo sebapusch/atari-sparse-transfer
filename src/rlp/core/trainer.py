@@ -33,16 +33,14 @@ class TrainingConfig:
 
 
 class Trainer:
-    def __init__(self, ctx: TrainingContext, cfg: TrainingConfig, checkpointer: Checkpointer) -> None:
+    def __init__(self, ctx: TrainingContext, cfg: TrainingConfig, checkpointer: Checkpointer, start_step: int = 0) -> None:
         self.ctx = ctx
         self.cfg = cfg
         self.checkpointer = checkpointer
 
-        self.start_step = 0
+        self.start_step = start_step
 
     def train(self) -> None:
-        self._try_resume()
-
         envs = self.ctx.envs
         obs, _ = envs.reset(seed=self.cfg.seed)
 
@@ -113,24 +111,7 @@ class Trainer:
                 'epsilon': epsilon,
             }
         )
-
-    def _try_resume(self):
-        """
-        Loads the latest checkpoint if available and restores state.
-        """
-        state = self.checkpointer.load(self.ctx.device)
-
-        if state is None:
-            print("🆕 Starting training from scratch.")
-            return
-
-        print(f"🔄 Resuming training from step {state['step']}...")
-        self.ctx.agent.load_state_dict(state['agent'])
-        if isinstance(state['cfg'], dict):
-            self.cfg = TrainingConfig(**state['cfg'])
-        else:
-            self.cfg = state['cfg']
-        self.start_step = state['step'] + 1
+        self.ctx.logger.commit()
 
     def _get_actions(self, obs: np.ndarray, step: int, epsilon: float) -> np.ndarray:
         if step < self.cfg.learning_starts:

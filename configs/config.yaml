@@ -19,5 +19,12 @@ wandb:
   job_type: "train"
   name: null # auto-generated if null
 
+# Transfer Learning
+transfer:
+  source_run_id: null
+  source_artifact_alias: "latest"
+  load_encoder: true
+  load_head: false
+
 # Output directory (Hydra handles this, but we can add custom paths)
 output_dir: ${hydra:runtime.output_dir}
