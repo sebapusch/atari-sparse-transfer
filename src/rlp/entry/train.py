@@ -41,13 +41,32 @@ def main(cfg: DictConfig) -> None:
         
     print(OmegaConf.to_yaml(cfg))
     
-    trainer = build_trainer(cfg)
-    print('Initialized trainer, starting...')
+    trainer, resume_state = build_trainer(cfg)
+    print('Initialized trainer.')
     
-    # Train
-    trainer.train()
+    # Check for Lottery Ticket Hypothesis
+    if cfg.pruning.method == 'lth':
+        from rlp.pruning.lottery import Lottery, LotteryConfig
+        
+        print("🎭 Initializing Lottery Ticket Hypothesis pipeline...")
+        
+        # Create Lottery Config
+        # Assuming cfg.pruning.lottery exists with relevant fields
+        lottery_cfg = LotteryConfig(
+            final_sparsity=cfg.pruning.lottery.final_sparsity,
+            num_rounds=cfg.pruning.lottery.num_rounds,
+            rewind_to_step=cfg.pruning.lottery.get('rewind_to_step', 0)
+        )
+        
+        lottery = Lottery(trainer, lottery_cfg, resume_state=resume_state)
+        lottery.run()
+        
+    else:
+        # Standard Training
+        print('🚀 Starting Standard Training...')
+        trainer.train()
 
-def build_trainer(config: DictConfig) -> Trainer:
+def build_trainer(config: DictConfig) -> tuple[Trainer, dict | None]:
     builder = Builder(config)
     
     checkpointer = builder.build_checkpointer()
@@ -75,7 +94,7 @@ def build_trainer(config: DictConfig) -> Trainer:
     
     training_config = builder.build_training_config()
     
-    return Trainer(ctx, training_config, checkpointer, start_step=start_step)
+    return Trainer(ctx, training_config, checkpointer, start_step=start_step), state
 
 if __name__ == "__main__":
     main()

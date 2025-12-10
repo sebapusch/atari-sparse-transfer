@@ -153,9 +153,14 @@ class Builder:
                     update_frequency=self.config.pruning.update_frequency,
                 )
             case 'lth':
-                raise NotImplementedError('LTH pruner not implemented')
+                # LTH is handled by the Lottery wrapper (External Pruning)
+                # The agent itself doesn't need an internal pruner for schedules.
+                # However, it might need to apply masks? 
+                # DQNAgent applies masks via hooks or target network updates.
+                # If we pass None, DQNAgent logic for prune(step) returns None, which is fine.
+                pruner = None
             case _:
-                raise ValueError(f"Unknown pruner: {self.config.pruning.methed}")
+                raise ValueError(f"Unknown pruner: {self.config.pruning.method}")
 
         return pruner
 

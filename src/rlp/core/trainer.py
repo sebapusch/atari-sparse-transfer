@@ -36,9 +36,7 @@ class Trainer:
     def __init__(self, ctx: TrainingContext, cfg: TrainingConfig, checkpointer: Checkpointer, start_step: int = 0) -> None:
         self.ctx = ctx
         self.cfg = cfg
-        self.checkpointer = checkpointer
-
-        self.start_step = start_step
+        self.external_state: dict[str, Any] = {}
 
     def train(self) -> None:
         envs = self.ctx.envs
@@ -100,13 +98,19 @@ class Trainer:
                 step % self.cfg.train_frequency == 0)
 
     def _save(self, step: int, epsilon: float) -> None:
+        state = {
+            'agent': self.ctx.agent.state_dict(),
+            'cfg':   self.cfg,
+            'step':  step,
+        }
+        
+        # Merge external state if present
+        if self.external_state:
+            state.update(self.external_state)
+            
         self.checkpointer.save(
             step,
-            state={
-                'agent': self.ctx.agent.state_dict(),
-                'cfg':   self.cfg,
-                'step':  step,
-            },
+            state=state,
             metadata={
                 'epsilon': epsilon,
             }

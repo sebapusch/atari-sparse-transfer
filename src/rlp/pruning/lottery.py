@@ -30,25 +30,44 @@ class Lottery:
     Wraps a Trainer instance to perform Iterative Magnitude Pruning (IMP) with rewinding.
     """
 
-    def __init__(self, trainer: Trainer, config: LotteryConfig):
+    def __init__(self, trainer: Trainer, config: LotteryConfig, resume_state: dict | None = None):
         self.trainer = trainer
         self.config = config
         
         # Calculate per-round pruning rate to reach final_sparsity in num_rounds
-        # (1 - p)^N = (1 - S_final) => p = 1 - (1 - S_final)^(1/N)
-        # p is the fraction of *remaining* weights to prune each round.
         self.retention_per_round = (1.0 - self.config.final_sparsity) ** (1.0 / self.config.num_rounds)
         self.prune_amount = 1.0 - self.retention_per_round
 
-        # Store initial weights (theta_0)
-        # We need a deepcopy of the network parameters at initialization.
-        # The trainer.ctx.agent should have the network.
-        # We'll rely on the agent exposing the network or just state_dict.
-        # Ideally, we rewind parameters.
-        # We must support saving/loading the "rewind state".
+        self.start_round = 1
         
-        self.rewind_state = copy.deepcopy(self.trainer.ctx.agent.state_dict())
-        self.rewind_opt_state = copy.deepcopy(self.trainer.ctx.agent.optimizer.state_dict())
+        # Handle Resuming
+        if resume_state and "lottery_round" in resume_state:
+             # Resume logic
+             self.start_round = resume_state["lottery_round"]
+             # If we finished logic for round X, we saved lottery_round=X.
+             # So we should start next round?
+             # Wait, usually we save periodically. 
+             # If we resume from middle of training in round X, 'lottery_round' might be X.
+             # In that case, we should continue round X.
+             # If we finished round X and saved, then crashed, we might be at start of X+1.
+             # Let's assume 'lottery_round' indicates the round currently IN PROGRESS or just FINISHED if we call update at end?
+             # We will update 'lottery_round' at START of round.
+             print(f"🔄 Lottery: Resuming from Round {self.start_round}")
+             
+             # Attempt to load theta_0 from local disk (persisted from previous run)
+             self.rewind_state, self.rewind_opt_state = self._load_theta_0()
+             
+             if not self.rewind_state:
+                 # Critical error? Or fallback to current state (incorrect for LTH)?
+                 # Actually if resume_state exists, we MUST have theta_0 somewhere.
+                 # Unless user deleted files.
+                 raise RuntimeError("Resuming LTH but theta_0 not found.")
+                 
+        else:
+            # Fresh Start
+            self.rewind_state = copy.deepcopy(self.trainer.ctx.agent.state_dict())
+            self.rewind_opt_state = copy.deepcopy(self.trainer.ctx.agent.optimizer.state_dict())
+            self._save_theta_0()
 
     def run(self):
         """Executes the full LTH pipeline."""
@@ -56,20 +75,23 @@ class Lottery:
         print(f"Target Sparsity: {self.config.final_sparsity:.4f} over {self.config.num_rounds} rounds.")
         print(f"Pruning rate per round: {self.prune_amount:.4f}")
 
-        for round_idx in range(1, self.config.num_rounds + 1):
+        # If resuming, we might be in middle of round.
+        # trainer.start_step tells us where we are in training loop.
+        
+        for round_idx in range(self.start_round, self.config.num_rounds + 1):
             print(f"\n--- 🔄 Round {round_idx}/{self.config.num_rounds} ---")
             
-            # 1. Train to completion
-            # Ensure fresh start/reset for training but KEEP MASKS if they exist.
-            # The trainer's start_step might be non-zero if we just finished a loop.
-            # We must reset the trainer's internal loop state but keep the agent's mask.
+            # Update external state for checkpointing
+            self.trainer.external_state['lottery_round'] = round_idx
             
-            # Reset Environment and Buffer for fresh training run
-            self.trainer.ctx.envs.reset(seed=self.trainer.cfg.seed + round_idx) # Optional: vary seed per round? Usually Fixed seed for LTH stability?
-            # Actually LTH usually keeps same seed for data order if possible, or just standard training.
-            # Frankle 2019 uses same data order (reset seed).
-            self.trainer.ctx.buffer.reset()
-            self.trainer.start_step = 0 # Force trainer to start from 0
+            # 1. Train to completion
+            # If resuming round_idx (== start_round) and trainer.start_step > 0, 
+            # we just continue training.
+            if round_idx > self.start_round:
+                 # Only reset if we are NOT resuming this specific round from middle
+                 self.trainer.ctx.envs.reset(seed=self.trainer.cfg.seed + round_idx)
+                 self.trainer.ctx.buffer.reset()
+                 self.trainer.start_step = 0 
             
             # Train
             self.trainer.train()
@@ -83,9 +105,9 @@ class Lottery:
             self._rewind_network()
 
             # 5. Sync/Log
-            current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder) # Assuming encoder is the main thing
-            # Or just check agent network.
-            # DQNAgent has .network
+            # 5. Sync/Log
+            # current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder) # REMOVED UNSAFE CALL
+
             
             # We assume agent.network is the module to prune.
             if hasattr(self.trainer.ctx.agent, "network"):
@@ -101,6 +123,31 @@ class Lottery:
             self._log_artifacts(round_idx, current_sparsity)
 
         print("\n🏆 Lottery Ticket Experiment Complete.")
+        
+    def _save_theta_0(self):
+        """Persists init weights to disk/WandB to allow resuming."""
+        # We save locally to checkpoint dir so it's available on resume
+        # and checking 'latest' checkpoint dir is handled by checkpointer logic?
+        # Maybe we should ask Checkpointer for dir?
+        # self.trainer.checkpointer.checkpoint_dir
+        
+        path = os.path.join(self.trainer.checkpointer.checkpoint_dir, "theta_0.pt")
+        torch.save({
+            "agent": self.rewind_state,
+            "optimizer": self.rewind_opt_state
+        }, path)
+        print(f"💾 Saved theta_0 to {path}")
+
+    def _load_theta_0(self):
+        path = os.path.join(self.trainer.checkpointer.checkpoint_dir, "theta_0.pt")
+        if os.path.exists(path):
+            data = torch.load(path, map_location=self.trainer.ctx.device)
+            print(f"📂 Loaded theta_0 from {path}")
+            return data["agent"], data["optimizer"]
+        
+        # Try checking if remote WandB has it? 
+        # For now assume local filesystem persistence or user manually downloaded.
+        return None, None
         
     def _prune_network(self):
         """
