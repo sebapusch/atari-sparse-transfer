@@ -16,11 +16,26 @@ class TestLotteryIntegration:
         trainer.cfg.seed = 42
         trainer.ctx = MagicMock()
         trainer.ctx.device = torch.device('cpu')
+        # Mock Agent Structure
+        # agent.network -> .encoder (Linear)
+        mock_network = MagicMock()
+        mock_network.encoder = torch.nn.Linear(10, 10)
+        # Also give named_modules to network so we can iterate it in logging
+        # named_modules should return [('', network), ('encoder', encoder)]
+        # But we mock it.
+        def mock_named_modules():
+            yield '', mock_network
+            yield 'encoder', mock_network.encoder
+        mock_network.named_modules = mock_named_modules
+
         trainer.ctx.agent = MagicMock(spec=AgentProtocol)
-        trainer.ctx.agent.network = torch.nn.Linear(10, 10)
+        trainer.ctx.agent.network = mock_network
+        
         trainer.ctx.agent.optimizer = MagicMock()
         trainer.ctx.agent.optimizer.state_dict.return_value = {'opt': 'state'}
-        trainer.ctx.agent.state_dict.return_value = {'network': {'weight': torch.randn(10, 10)}}
+        
+        # State dict should reflect this structure
+        trainer.ctx.agent.state_dict.return_value = {'network': {'encoder.weight': torch.randn(10, 10)}}
         
         trainer.checkpointer = MagicMock()
         trainer.checkpointer.checkpoint_dir = "/tmp/ckpt"

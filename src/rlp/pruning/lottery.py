@@ -105,32 +105,26 @@ class Lottery:
             self._rewind_network()
 
             # 5. Sync/Log
-            # 5. Sync/Log
-            # current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder) # REMOVED UNSAFE CALL
-
-            
-            # We assume agent.network is the module to prune.
-            if hasattr(self.trainer.ctx.agent, "network"):
-                network = self.trainer.ctx.agent.network
-                current_sparsity = calculate_sparsity(network)
+            # Calculate sparsity on encoder as it is the only pruned part
+            if hasattr(self.trainer.ctx.agent.network, "encoder"):
+                 current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder)
+            elif hasattr(self.trainer.ctx.agent, "network"):
+                 # Fallback if no specific encoder attribute
+                 # But we pruned 'encoder', so it SHOULD exist.
+                 current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network)
             else:
-                # Fallback, though unsafe
-                current_sparsity = 0.0
-                print("⚠️ Could not calculate sparsity: agent has no 'network' attribute.")
+                 current_sparsity = 0.0
 
-            print(f"📊 Round {round_idx} complete. Current Sparsity: {current_sparsity:.4f}")
+            print(f"📊 Round {round_idx} complete. Current Sparsity (Encoder): {current_sparsity:.4f}")
             
+            self._log_artifacts(round_idx, current_sparsity)
+
             self._log_artifacts(round_idx, current_sparsity)
 
         print("\n🏆 Lottery Ticket Experiment Complete.")
         
     def _save_theta_0(self):
         """Persists init weights to disk/WandB to allow resuming."""
-        # We save locally to checkpoint dir so it's available on resume
-        # and checking 'latest' checkpoint dir is handled by checkpointer logic?
-        # Maybe we should ask Checkpointer for dir?
-        # self.trainer.checkpointer.checkpoint_dir
-        
         path = os.path.join(self.trainer.checkpointer.checkpoint_dir, "theta_0.pt")
         torch.save({
             "agent": self.rewind_state,
@@ -144,39 +138,30 @@ class Lottery:
             data = torch.load(path, map_location=self.trainer.ctx.device)
             print(f"📂 Loaded theta_0 from {path}")
             return data["agent"], data["optimizer"]
-        
-        # Try checking if remote WandB has it? 
-        # For now assume local filesystem persistence or user manually downloaded.
         return None, None
         
     def _prune_network(self):
         """
-        Applies global magnitude pruning to the agent's network.
+        Applies global magnitude pruning to the agent's network encoder.
         Prunes self.prune_amount of the *remaining* weights.
         """
         if not hasattr(self.trainer.ctx.agent, "network"):
             raise RuntimeError("Agent must have a 'network' attribute to be pruned.")
         
-        network = self.trainer.ctx.agent.network
+        # Prune only the encoder
+        network = self.trainer.ctx.agent.network.encoder
         
-        # Get prunable modules (Linear, Conv2d)
-        # Using utils.get_prunable_modules which returns list of (module, name)
         parameters_to_prune = get_prunable_modules(network)
         
         if not parameters_to_prune:
             print("⚠️ No prunable parameters found.")
             return
 
-        # Global LS Unstructured pruning
-        # This applies the mask permanently to the module state (creates _mask and _orig)
         prune.global_unstructured(
             parameters_to_prune,
             pruning_method=prune.L1Unstructured,
             amount=self.prune_amount,
         )
-        
-        # Note: prune.global_unstructured applies the mask immediately.
-        # But for LTH we want to prune THEN rewind.
         
     def _rewind_network(self):
         """
@@ -185,95 +170,39 @@ class Lottery:
         """
         agent = self.trainer.ctx.agent
         
-        # 1. Reload original weights
-        # This will separate mask and value if prune was applied correctly.
-        # When we load_state_dict on a pruned model, PyTorch handles it if keys match.
-        # BUT: The saved state_dict (theta_0) has 'weight', not 'weight_orig' + 'weight_mask'.
-        # The current model has 'weight_orig' and 'weight_mask' due to pruning.
-        
-        # Complex Rewinding Logic:
-        # We must copy theta_0 values into 'weight_orig' of the current model.
-        # We must NOT overwrite the masks.
-        
-        # Iterate over modules and manualy reset 'weight_orig'
-        current_modules = dict(agent.network.named_modules())
-        
-        # We need the original state dict to look up values.
-        # The keys in rewind_state are like 'network.encoder.0.weight'
-        # or just 'encoder.0.weight' depending on agent.state_dict() structure.
-        # DQNAgent.state_dict() returns {'network': ..., ...}
-        
+        # Rewind weights
         orig_net_state = self.rewind_state['network']
         
         for name, module in agent.network.named_modules():
-            # We are looking for pruned modules
+            # If pruned, we have weight_orig/mask. Reset weight_orig.
             if prune.is_pruned(module):
-                # This module has 'weight_orig' and 'weight_mask'
-                # We want to reset 'weight_orig' to the value from theta_0.
-                
-                # Construct key for lookup in orig_net_state
-                # name is relative to network. e.g. "encoder.0"
-                # We need to find the weight param.
-                # Usually it's "weight".
-                
                 weight_key = f"{name}.weight" if name else "weight"
-                
                 if weight_key in orig_net_state:
-                    # Update weight_orig
-                    # Ensure shapes match
                     original_weight = orig_net_state[weight_key]
                     module.weight_orig.data.copy_(original_weight.data)
-                else:
-                    # Maybe bias? Pruning usually just weights.
-                    pass
             else:
-                 # Not pruned, but we still rewind it! LTH rewinds ALL weights.
-                 # Just standard load_state_dict for these would work, but mixing is tricky.
-                 # Let's handle manually to be safe.
-                 
-                 # Weights
+                 # Standard rewinding for unpruned modules
                  weight_key = f"{name}.weight" if name else "weight"
                  if hasattr(module, 'weight') and weight_key in orig_net_state:
                      module.weight.data.copy_(orig_net_state[weight_key].data)
                  
-                 # Biases
                  bias_key = f"{name}.bias" if name else "bias"
                  if hasattr(module, 'bias') and module.bias is not None and bias_key in orig_net_state:
                      module.bias.data.copy_(orig_net_state[bias_key].data)
 
-        # 2. Reset Optimizer
-        # We load the original optimizer state.
-        # Note: Functionally this resets momentum buffers etc.
+        # Reset Optimizer
         agent.optimizer.load_state_dict(self.rewind_opt_state)
         
-        # 3. Handle Target Network
-        # In DQNAgent, target network is a separate container.
-        # We should reset it too to match theta_0.
-        # But wait, does it have masks?
-        # The agent.prune() logic in DQNAgent assumes clean target network.
-        # But if we are running LTH, does the target network need to be pruned?
-        # Usually LTH implies the architecture itself is pruned.
-        # The DQNAgent handles masking via `_update_target_network` which COPIES masked weights to target.
-        # So target network structure (dense) remains, but values effectively become sparse.
-        # So we just need to rewind target network to theta_0 target network.
-        
+        # Reset Target Network
         agent.target_network.load_state_dict(self.rewind_state['target_network'])
 
     def _log_artifacts(self, round_idx: int, sparsity: float):
-        if wandb is None or self.trainer.ctx.logger.run is None:
-            return
-
-        # Prepare metadata
-        metadata = {
-            "round": round_idx,
-            "sparsity": sparsity,
-            "method": "LTH_Global_Magnitude",
-            "config": asdict(self.config)
-        }
+        # ... (start of method)
         
         # Save Mask
         # We extract just the masks.
         masks = {}
+        # Iterate over full network to capture all masks (which should only be in encoder now)
         for name, module in self.trainer.ctx.agent.network.named_modules():
             if prune.is_pruned(module):
                 masks[name] = module.weight_mask.cpu() # Keep on CPU
