@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 
-class   Head(nn.Module):
+class Head(nn.Module):
     """Base class for Heads."""
     pass
 

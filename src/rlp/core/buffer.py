@@ -256,3 +256,18 @@ class ReplayBuffer:
             dones=torch.tensor(self.dones[batch_inds, env_inds], device=self.device),
             rewards=torch.tensor(self.rewards[batch_inds, env_inds], device=self.device),
         )
+
+    def reset(self) -> None:
+        """Resets the buffer."""
+        self.pos = 0
+        self.full = False
+        
+        # We don't necessarily need to zero out the arrays, 
+        # as pos/full control access, but for safety/debugging:
+        self.observations.fill(0)
+        self.actions.fill(0)
+        self.rewards.fill(0)
+        self.dones.fill(0)
+        
+        if self.next_observations is not None:
+            self.next_observations.fill(0)

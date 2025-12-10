@@ -14,7 +14,6 @@ from rlp.agent.base import AgentProtocol
 from rlp.components.network import QNetwork
 from rlp.core.buffer import ReplayBufferSamples
 from rlp.pruning.base import PrunerProtocol
-from rlp.pruning.utils import calculate_sparsity
 
 
 @dataclass
@@ -35,7 +34,7 @@ class DQNAgent(AgentProtocol):
         cfg: DQNConfig,
         device: torch.Device,
     ) -> None:
-        self.device = torch.device(device)
+        self.device = device
         self.network = network.to(self.device)
         self.optimizer = optimizer
         self.pruner = pruner
