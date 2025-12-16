@@ -9,6 +9,8 @@ from rlp.core.trainer import Trainer
 def main(cfg: DictConfig) -> None:
     if cfg.train.get('resume', False):
         cfg = load_resume_config(cfg)
+    else:
+        cfg.train.resume = False
         
     print(OmegaConf.to_yaml(cfg))
     
