@@ -60,6 +60,7 @@ output_dir: "outputs/minatar_lth"
 # W&B
 wandb:
   enabled: true
+  entity: null
   project: "rlp-25"
   group: "minatar-lth"
   tags: ["minatar", "lth", "imp"]
