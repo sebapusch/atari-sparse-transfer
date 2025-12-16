@@ -9,3 +9,5 @@ pruning:
 
 wandb:
   tags: ${wandb.tags} + ["gmp"]
+
+output_dir: "../models"
