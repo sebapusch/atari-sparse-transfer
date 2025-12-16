@@ -20,7 +20,7 @@ except ImportError:
 class LotteryConfig:
     final_sparsity: float
     num_rounds: int
-    rewind_to_step: int = 0  # Should be 0 for standard LTH
+    rewind_to_step: int = 0
     description: str = "Lottery Ticket Hypothesis Experiment"
 
 
@@ -33,8 +33,7 @@ class Lottery:
     def __init__(self, trainer: Trainer, config: LotteryConfig, resume_state: dict | None = None):
         self.trainer = trainer
         self.config = config
-        
-        # Calculate per-round pruning rate to reach final_sparsity in num_rounds
+
         self.retention_per_round = (1.0 - self.config.final_sparsity) ** (1.0 / self.config.num_rounds)
         self.prune_amount = 1.0 - self.retention_per_round
 
@@ -42,17 +41,9 @@ class Lottery:
         
         # Handle Resuming
         if resume_state and "lottery_round" in resume_state:
-             # Resume logic
              self.start_round = resume_state["lottery_round"]
-             # If we finished logic for round X, we saved lottery_round=X.
-             # So we should start next round?
-             # Wait, usually we save periodically. 
-             # If we resume from middle of training in round X, 'lottery_round' might be X.
-             # In that case, we should continue round X.
-             # If we finished round X and saved, then crashed, we might be at start of X+1.
-             # Let's assume 'lottery_round' indicates the round currently IN PROGRESS or just FINISHED if we call update at end?
-             # We will update 'lottery_round' at START of round.
-             print(f"🔄 Lottery: Resuming from Round {self.start_round}")
+
+             print(f"Lottery: Resuming from Round {self.start_round}")
              
              # Attempt to load theta_0 from local disk (persisted from previous run)
              self.rewind_state, self.rewind_opt_state = self._load_theta_0()
@@ -130,16 +121,16 @@ class Lottery:
             "agent": self.rewind_state,
             "optimizer": self.rewind_opt_state
         }, path)
-        print(f"💾 Saved theta_0 to {path}")
+        print(f"Saved theta_0 to {path}")
 
     def _load_theta_0(self):
         path = os.path.join(self.trainer.checkpointer.checkpoint_dir, "theta_0.pt")
         if os.path.exists(path):
             data = torch.load(path, map_location=self.trainer.ctx.device)
-            print(f"📂 Loaded theta_0 from {path}")
+            print(f"Loaded theta_0 from {path}")
             return data["agent"], data["optimizer"]
         return None, None
-        
+
     def _prune_network(self):
         """
         Applies global magnitude pruning to the agent's network encoder.
