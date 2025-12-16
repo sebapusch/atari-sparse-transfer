@@ -2,46 +2,14 @@
 # Configuration for Iterative Magnitude Pruning (IMP) on MinAtar
 
 defaults:
+  - minatar
   - _self_
 
-# Environment
+train:
+  total_timesteps: 500000
+
 env:
   id: "MinAtar/breakout"
-  num_envs: 1
-  capture_video: false
-  frame_stack: 1
-
-# Algorithm: DDQN
-algorithm:
-  name: "ddqn"
-  network:
-    encoder: "minatar_cnn"
-    head: "linear"
-    hidden_dim: 128
-  
-  # Hyperparameters
-  gamma: 0.99
-  tau: 1.0
-  target_network_frequency: 1000
-  batch_size: 32
-  learning_starts: 5000
-  train_frequency: 1
-  
-  epsilon:
-    start: 1.0
-    end: 0.01
-    decay_fraction: 0.1
-  
-  optimizer:
-    lr: 1e-4
-    eps: 1e-8
-
-# Training
-train:
-  total_timesteps: 5000000
-  checkpoint_interval: 100000
-  # Resume MUST be false for initial LTH run, logic handles it internally for rounds
-  resume: false 
 
 # Pruning: LTH
 pruning:
@@ -55,7 +23,6 @@ pruning:
 # Global
 seed: 1
 device: "cuda"
-output_dir: "outputs/minatar_lth"
 
 # W&B
 wandb:
