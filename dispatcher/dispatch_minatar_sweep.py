@@ -77,7 +77,7 @@ def main():
             f"pruning.final_sparsity={sparsity}",
             f"wandb.group=minatar-sweep",
             f"wandb.tags=\"{tags}\"",
-            f"hydra.job.name={job_name}" # Helpful for Hydra outputs
+            f"hydra.job.name={job_name}",
              # We might want to set the experiment name in wandb too
             f"wandb.name={job_name}"
         ]

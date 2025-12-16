@@ -1,6 +1,6 @@
 name: "minatar_ddqn_sweep"
 
-base_config: "minatar"
+base_config: "minatar-gmp"
 
 params:
   seed: [1, 2, 3]
