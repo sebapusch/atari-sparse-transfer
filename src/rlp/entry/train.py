@@ -9,8 +9,6 @@ from rlp.core.trainer import Trainer
 def main(cfg: DictConfig) -> None:
     if cfg.train.get('resume', False):
         cfg = load_resume_config(cfg)
-    else:
-        cfg.train.resume = False
         
     print(OmegaConf.to_yaml(cfg))
     
@@ -66,7 +64,7 @@ def build_trainer(config: DictConfig) -> tuple[Trainer, dict | None]:
     start_step = 0
     state = None
     
-    if config.train.resume:
+    if config.train.get('resume', False):
         state = checkpointer.load(builder.device)
         if state:
             start_step = state['step'] + 1
