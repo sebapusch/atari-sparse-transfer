@@ -29,5 +29,6 @@ wandb:
   enabled: true
   project: "rlp-25"
   group: "minatar"
+  entity: null
   tags: ["minatar", "ddqn"]
   job_type: "train"
