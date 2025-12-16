@@ -34,7 +34,25 @@ class Lottery:
         self.trainer = trainer
         self.config = config
 
-        self.retention_per_round = (1.0 - self.config.final_sparsity) ** (1.0 / self.config.num_rounds)
+        # Calculate Initial Sparsity (e.g., from Transfer Learning)
+        if hasattr(self.trainer.ctx.agent, "network") and hasattr(self.trainer.ctx.agent.network, "encoder"):
+             self.initial_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder)
+             print(f"Lottery: Detected initial sparsity of {self.initial_sparsity:.4f}")
+        else:
+             self.initial_sparsity = 0.0
+
+        # Calculate schedule
+        # Relation: (1 - final) = (1 - initial) * (retention ^ rounds)
+        # retention ^ rounds = (1 - final) / (1 - initial)
+        # retention = ((1 - final) / (1 - initial)) ** (1/rounds)
+        
+        if self.initial_sparsity >= self.config.final_sparsity:
+            print("⚠️ Initial sparsity is already greater than or equal to final sparsity. Lottery will not prune.")
+            self.retention_per_round = 1.0
+        else:
+            remaining_fraction = (1.0 - self.config.final_sparsity) / (1.0 - self.initial_sparsity)
+            self.retention_per_round = remaining_fraction ** (1.0 / self.config.num_rounds)
+            
         self.prune_amount = 1.0 - self.retention_per_round
 
         self.start_round = 1
@@ -45,7 +63,7 @@ class Lottery:
 
              print(f"Lottery: Resuming from Round {self.start_round}")
              
-             # Attempt to load theta_0 from local disk (persisted from previous run)
+             # If resuming, we also need to load theta0
              self.rewind_state, self.rewind_opt_state = self._load_theta_0()
              
              if not self.rewind_state:
@@ -63,8 +81,10 @@ class Lottery:
     def run(self):
         """Executes the full LTH pipeline."""
         print(f"🎰 Starting Lottery Ticket Hypothesis Experiment")
+        print(f"Initial Sparsity: {self.initial_sparsity:.4f}")
         print(f"Target Sparsity: {self.config.final_sparsity:.4f} over {self.config.num_rounds} rounds.")
-        print(f"Pruning rate per round: {self.prune_amount:.4f}")
+        print(f"Retention rate per round: {self.retention_per_round:.4f}")
+        print(f"Pruning rate (of remaining) per round: {self.prune_amount:.4f}")
 
         # If resuming, we might be in middle of round.
         # trainer.start_step tells us where we are in training loop.
@@ -73,33 +93,38 @@ class Lottery:
             print(f"\n--- 🔄 Round {round_idx}/{self.config.num_rounds} ---")
             
             # Update external state for checkpointing
-            self.trainer.external_state['lottery_round'] = round_idx
+            self.trainer.external_state["lottery_round"] = round_idx
             
-            # 1. Train to completion
-            # If resuming round_idx (== start_round) and trainer.start_step > 0, 
-            # we just continue training.
-            if round_idx > self.start_round:
-                 # Only reset if we are NOT resuming this specific round from middle
-                 self.trainer.ctx.envs.reset(seed=self.trainer.cfg.seed + round_idx)
-                 self.trainer.ctx.buffer.reset()
-                 self.trainer.start_step = 0 
-            
-            # Train
+            # 1. Train
+            print(f"🏋️ Training Round {round_idx}...")
+            # We continue training from wherever we are. 
+            # If start of round, we might have just rewound (or initial start).
             self.trainer.train()
-
-            # 2. Compute Global Magnitude Mask & 3. Apply Mask
-            print(f"✂️ Pruning round {round_idx}...")
-            self._prune_network()
-
-            # 4. Rewind surviving weights
-            print(f"⏪ Rewinding weights to init...")
-            self._rewind_network()
-
-            # 5. Sync/Log
-            # Calculate sparsity on encoder as it is the only pruned part
-            if hasattr(self.trainer.ctx.agent.network, "encoder"):
-                 current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder)
-            elif hasattr(self.trainer.ctx.agent, "network"):
+            
+            # 2. Prune
+            print(f"✂️ Pruning Network (Prune Rate: {self.prune_amount:.4f} of remaining)...")
+            self._prune_network(amount=self.prune_amount)
+            
+            # 3. Rewind
+            if round_idx < self.config.num_rounds:
+                 print(f"⏪ Rewinding to theta_0 (Step {self.config.rewind_to_step})...")
+                 self._rewind_network()
+                 
+                 # Reset trainer steps for next round re-training
+                 # We want to re-train for the SAME duration or until convergence?
+                 # Standard LTH: Train for T steps, Prune, Rewind to 0, Train for T steps...
+                 # So we need to reset the trainer global step to 0 (or rewind_step)
+                 # self.trainer.start_step = self.config.rewind_to_step 
+                 # BUT Trainer doesn't reset automatically. We need to handle this.
+                 
+                 # Force Trainer reset
+                 self.trainer.start_step = self.config.rewind_to_step
+                 
+                 # We also need to reset scheduler / etc if they depend on step?
+                 # Trainer.train() loop uses self.start_step. 
+                 
+            # 4. Log / Measurement
+            if hasattr(self.trainer.ctx.agent, "network"):
                  # Fallback if no specific encoder attribute
                  # But we pruned 'encoder', so it SHOULD exist.
                  current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network)
@@ -108,8 +133,6 @@ class Lottery:
 
             print(f"📊 Round {round_idx} complete. Current Sparsity (Encoder): {current_sparsity:.4f}")
             
-            self._log_artifacts(round_idx, current_sparsity)
-
             self._log_artifacts(round_idx, current_sparsity)
 
         print("\n🏆 Lottery Ticket Experiment Complete.")
@@ -131,10 +154,10 @@ class Lottery:
             return data["agent"], data["optimizer"]
         return None, None
 
-    def _prune_network(self):
+    def _prune_network(self, amount: float):
         """
         Applies global magnitude pruning to the agent's network encoder.
-        Prunes self.prune_amount of the *remaining* weights.
+        Prunes to reach 'amount' total sparsity.
         """
         if not hasattr(self.trainer.ctx.agent, "network"):
             raise RuntimeError("Agent must have a 'network' attribute to be pruned.")
@@ -151,7 +174,7 @@ class Lottery:
         prune.global_unstructured(
             parameters_to_prune,
             pruning_method=prune.L1Unstructured,
-            amount=self.prune_amount,
+            amount=amount,
         )
         
     def _rewind_network(self):
