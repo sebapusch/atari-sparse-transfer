@@ -101,17 +101,18 @@ class Builder:
     def build_network(self, num_actions: int, input_channels: int) -> QNetwork:
         match self.config.algorithm.network.encoder:
             case 'nature_cnn':
-                encoder = NatureCNN(input_channels=input_channels)
+                encoder = NatureCNN(input_channels=input_channels,
+                                    hidden_dim=self.config.algorithm.network.hidden_dim)
             case 'minatar_cnn':
-                encoder = MinAtarCNN(input_channels=input_channels)
+                encoder = MinAtarCNN(input_channels=input_channels,
+                                     hidden_dim=self.config.algorithm.network.hidden_dim)
             case _:
                 raise ValueError(f"Unknown encoder: {self.config.algorithm.network.encoder}")
 
         match self.config.algorithm.network.head:
             case 'linear':
                 head = LinearHead(encoder.output_dim,
-                                  num_actions,
-                                  self.config.algorithm.network.hidden_dim)
+                                  num_actions)
             case 'dueling':
                 head = DuelingHead(encoder.output_dim,
                                    num_actions,

@@ -6,7 +6,7 @@ defaults:
 
 # Environment
 env:
-  id: "MinAtar/Breakout-v0"
+  id: "MinAtar/breakout"
   num_envs: 1
   capture_video: false
   frame_stack: 1
