@@ -29,8 +29,12 @@ class AgentProtocol(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def prune(self, step: int) -> float | None:
+    def prune(self, context: Any) -> float | None:
         ...
+
+    def should_stop(self, context: Any) -> bool:
+        """Default to False unless overridden."""
+        return False
 
     @abc.abstractmethod
     def state_dict(self) -> dict[str, Any]:

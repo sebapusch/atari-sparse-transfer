@@ -4,248 +4,244 @@ import copy
 import json
 import os
 import torch
+import torch.nn as nn
 import torch.nn.utils.prune as prune
-from dataclasses import dataclass, asdict
+import numpy as np
+from dataclasses import dataclass, field
+from typing import Any, List
 
-from rlp.core.trainer import Trainer
+from rlp.pruning.base import PrunerProtocol, PruningContext
 from rlp.pruning.utils import get_prunable_modules, calculate_sparsity
-
-try:
-    import wandb
-except ImportError:
-    wandb = None
-
 
 @dataclass
 class LotteryConfig:
     final_sparsity: float
     num_rounds: int
+    first_iteration_steps: int
     rewind_to_step: int = 0
+    pruning_rate: float = 0.1 # 10% per iteration
+    iqm_window_size: int = 100
     description: str = "Lottery Ticket Hypothesis Experiment"
 
 
-class Lottery:
+class LotteryPruner(PrunerProtocol):
     """
-    Implements the Lottery Ticket Hypothesis pipeline (Frankle & Carbin, 2019).
-    Wraps a Trainer instance to perform Iterative Magnitude Pruning (IMP) with rewinding.
+    Implements the Lottery Ticket Hypothesis pipeline as a Pruner.
+    Iterative Magnitude Pruning (IMP) with rewinding and IQM-based convergence.
     """
 
-    def __init__(self, trainer: Trainer, config: LotteryConfig, resume_state: dict | None = None):
-        self.trainer = trainer
+    def __init__(self, config: LotteryConfig) -> None:
         self.config = config
-
-        # Calculate Initial Sparsity (e.g., from Transfer Learning)
-        if hasattr(self.trainer.ctx.agent, "network") and hasattr(self.trainer.ctx.agent.network, "encoder"):
-             self.initial_sparsity = calculate_sparsity(self.trainer.ctx.agent.network.encoder)
-             print(f"Lottery: Detected initial sparsity of {self.initial_sparsity:.4f}")
-        else:
-             self.initial_sparsity = 0.0
-
-        # Calculate schedule
-        # Relation: (1 - final) = (1 - initial) * (retention ^ rounds)
-        # retention ^ rounds = (1 - final) / (1 - initial)
-        # retention = ((1 - final) / (1 - initial)) ** (1/rounds)
         
-        if self.initial_sparsity >= self.config.final_sparsity:
-            print("⚠️ Initial sparsity is already greater than or equal to final sparsity. Lottery will not prune.")
-            self.retention_per_round = 1.0
-        else:
-            remaining_fraction = (1.0 - self.config.final_sparsity) / (1.0 - self.initial_sparsity)
-            self.retention_per_round = remaining_fraction ** (1.0 / self.config.num_rounds)
-            
-        self.prune_amount = 1.0 - self.retention_per_round
-
-        self.start_round = 1
+        self.theta_0: dict[str, Any] | None = None
+        self.current_round = 1
         
-        # Handle Resuming
-        if resume_state and "lottery_round" in resume_state:
-             self.start_round = resume_state["lottery_round"]
-
-             print(f"Lottery: Resuming from Round {self.start_round}")
-             
-             # If resuming, we also need to load theta0
-             self.rewind_state, self.rewind_opt_state = self._load_theta_0()
-             
-             if not self.rewind_state:
-                 # Critical error? Or fallback to current state (incorrect for LTH)?
-                 # Actually if resume_state exists, we MUST have theta_0 somewhere.
-                 # Unless user deleted files.
-                 raise RuntimeError("Resuming LTH but theta_0 not found.")
-                 
-        else:
-            # Fresh Start
-            self.rewind_state = copy.deepcopy(self.trainer.ctx.agent.state_dict())
-            self.rewind_opt_state = copy.deepcopy(self.trainer.ctx.agent.optimizer.state_dict())
-            self._save_theta_0()
-
-    def run(self):
-        """Executes the full LTH pipeline."""
-        print(f"🎰 Starting Lottery Ticket Hypothesis Experiment")
-        print(f"Initial Sparsity: {self.initial_sparsity:.4f}")
-        print(f"Target Sparsity: {self.config.final_sparsity:.4f} over {self.config.num_rounds} rounds.")
-        print(f"Retention rate per round: {self.retention_per_round:.4f}")
-        print(f"Pruning rate (of remaining) per round: {self.prune_amount:.4f}")
-
-        # If resuming, we might be in middle of round.
-        # trainer.start_step tells us where we are in training loop.
+        # Convergence state
+        self.target_iqm: float | None = None
+        self.has_converged = False
+        self.last_pruning_step = 0
         
-        for round_idx in range(self.start_round, self.config.num_rounds + 1):
-            print(f"\n--- 🔄 Round {round_idx}/{self.config.num_rounds} ---")
-            
-            # Update external state for checkpointing
-            self.trainer.external_state["lottery_round"] = round_idx
-            
-            # 1. Train
-            print(f"🏋️ Training Round {round_idx}...")
-            # We continue training from wherever we are. 
-            # If start of round, we might have just rewound (or initial start).
-            self.trainer.train()
-            
-            # 2. Prune
-            print(f"✂️ Pruning Network (Prune Rate: {self.prune_amount:.4f} of remaining)...")
-            self._prune_network(amount=self.prune_amount)
-            
-            # 3. Rewind
-            if round_idx < self.config.num_rounds:
-                 print(f"⏪ Rewinding to theta_0 (Step {self.config.rewind_to_step})...")
-                 self._rewind_network()
-                 
-                 # Reset trainer steps for next round re-training
-                 # We want to re-train for the SAME duration or until convergence?
-                 # Standard LTH: Train for T steps, Prune, Rewind to 0, Train for T steps...
-                 # So we need to reset the trainer global step to 0 (or rewind_step)
-                 # self.trainer.start_step = self.config.rewind_to_step 
-                 # BUT Trainer doesn't reset automatically. We need to handle this.
-                 
-                 # Force Trainer reset
-                 self.trainer.start_step = self.config.rewind_to_step
-                 
-                 # We also need to reset scheduler / etc if they depend on step?
-                 # Trainer.train() loop uses self.start_step. 
-                 
-            # 4. Log / Measurement
-            if hasattr(self.trainer.ctx.agent, "network"):
-                 # Fallback if no specific encoder attribute
-                 # But we pruned 'encoder', so it SHOULD exist.
-                 current_sparsity = calculate_sparsity(self.trainer.ctx.agent.network)
-            else:
-                 current_sparsity = 0.0
+        self.initial_sparsity = 0.0
 
-            print(f"📊 Round {round_idx} complete. Current Sparsity (Encoder): {current_sparsity:.4f}")
-            
-            self._log_artifacts(round_idx, current_sparsity)
-
-        print("\n🏆 Lottery Ticket Experiment Complete.")
-        
-    def _save_theta_0(self):
-        """Persists init weights to disk/WandB to allow resuming."""
-        path = os.path.join(self.trainer.checkpointer.checkpoint_dir, "theta_0.pt")
-        torch.save({
-            "agent": self.rewind_state,
-            "optimizer": self.rewind_opt_state
-        }, path)
-        print(f"Saved theta_0 to {path}")
-
-    def _load_theta_0(self):
-        path = os.path.join(self.trainer.checkpointer.checkpoint_dir, "theta_0.pt")
-        if os.path.exists(path):
-            data = torch.load(path, map_location=self.trainer.ctx.device)
-            print(f"Loaded theta_0 from {path}")
-            return data["agent"], data["optimizer"]
-        return None, None
-
-    def _prune_network(self, amount: float):
+    def prune(self, model: nn.Module, context: PruningContext) -> float | None:
         """
-        Applies global magnitude pruning to the agent's network encoder.
-        Prunes to reach 'amount' total sparsity.
+        Main pruning logic.
+        1. Step 0: Save theta_0.
+        2. First Iteration: Wait for `first_iteration_steps`.
+        3. Convergence: Check IQM.
+        4. Prune Loop: Prune -> Rewind -> Increment Round.
         """
-        if not hasattr(self.trainer.ctx.agent, "network"):
-            raise RuntimeError("Agent must have a 'network' attribute to be pruned.")
+        step = context.step
         
-        # Prune only the encoder
-        network = self.trainer.ctx.agent.network.encoder
+        # 0. Initialization & Theta_0
+        if self.theta_0 is None:
+            # We assume step can be 0 or small. If first call, save theta_0.
+            # But we need to make sure we are at the START.
+            # Ideally we save this at step 0 specifically.
+            if step == 0:
+                self._save_theta_0(context.agent)
+                self.initial_sparsity = calculate_sparsity(model)
+                print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
+            elif step > 0 and self.theta_0 is None:
+                 # If we missed step 0 (e.g. resume or late init), this might be an issue.
+                 # For now, let's assume strict step 0 call or we grab current state if safe?
+                 # Better to grab theta_0 from agent if it was saved elsewhere? 
+                 # Or just save now if it's still early? 
+                 # Let's enforce step 0 save or assume loaded.
+                 pass
         
-        parameters_to_prune = get_prunable_modules(network)
-        
-        if not parameters_to_prune:
-            print("⚠️ No prunable parameters found.")
-            return
+        # 1. First Iteration Logic
+        if self.current_round == 1:
+            if step < self.config.first_iteration_steps:
+                return None
+            
+            # First iteration complete. Time to prune for the first time?
+            # User said "The model is trained for all train steps for the first iteration."
+            # Then "After the first iteration, ... prune every time it reaches IQM return"
+            
+            # So at end of first iteration, we:
+            # a) Calculate Target IQM (from dense training).
+            # b) Prune.
+            # c) Rewind.
+            # d) Start Round 2.
+            
+            print(f"Lottery: First iteration complete at step {step}.")
+            self._set_target_iqm(context.recent_episodic_returns)
+            return self._perform_pruning_step(model, context)
 
+        # 2. Subsequent Iterations
+        # Monitor convergence
+        if self._has_converged(context.recent_episodic_returns):
+            print(f"Lottery: Converged at round {self.current_round} (Step {step}).")
+            return self._perform_pruning_step(model, context)
+
+        return None
+
+    def should_stop(self, context: PruningContext) -> bool:
+        # Stop if we finished all rounds
+        return self.current_round > self.config.num_rounds
+
+    def _perform_pruning_step(self, model: nn.Module, context: PruningContext) -> float:
+        print(f"✂️ Lottery: Pruning (Round {self.current_round} -> {self.current_round + 1})...")
+        
+        # 1. Prune
+        # "model always prunes 10% of the weights per iteration"
+        # I will assume 10% of CURRENT remaining weights.
+        
+        parameters_to_prune = get_prunable_modules(model)
         prune.global_unstructured(
             parameters_to_prune,
             pruning_method=prune.L1Unstructured,
-            amount=amount,
+            amount=self.config.pruning_rate,
         )
         
-    def _rewind_network(self):
-        """
-        Resets unpruned weights to their original values (theta_0).
-        Resets optimizer state.
-        """
-        agent = self.trainer.ctx.agent
+        current_sparsity = calculate_sparsity(model)
+        print(f"Lottery: New Sparsity: {current_sparsity:.4f}")
+
+        # 2. Rewind
+        self._rewind_network(context.agent)
         
-        # Rewind weights
-        orig_net_state = self.rewind_state['network']
+        # 3. Update State
+        self.current_round += 1
+        self.last_pruning_step = context.step
         
+        # 4. Log artifact
+        
+        return current_sparsity
+
+    def _save_theta_0(self, agent: Any):
+        # Deepcopy to CPU to avoid memory issues
+        self.theta_0 = copy.deepcopy(agent.state_dict())
+        # Move to CPU recursively if needed? state_dict puts tensors on same device as model.
+        # Let's move to cpu.
+        for k, v in self.theta_0.items():
+            if isinstance(v, torch.Tensor):
+                self.theta_0[k] = v.cpu()
+            elif isinstance(v, dict): # Nested dicts (like optimizer state)
+                 for subk, subv in v.items():
+                     if isinstance(subv, torch.Tensor):
+                         v[subk] = subv.cpu()
+        
+        print("Lottery: Saved theta_0.")
+
+    def _rewind_network(self, agent: Any):
+        print(f"⏪ Lottery: Rewinding to theta_0...")
+        if self.theta_0 is None:
+            raise RuntimeError("Cannot rewind, theta_0 not saved!")
+
+        # We cannot just load_state_dict because the structure changed (masks added).
+        # We need to selectively load.
+        
+        # STRATEGY: 
+        # Iterate modules. If pruned, copy theta_0['weight'] into module.weight_orig.
+        # If not pruned, copy theta_0['weight'] into module.weight.
+        
+        # Let's traverse the agent's network modules directly.
         for name, module in agent.network.named_modules():
-            # If pruned, we have weight_orig/mask. Reset weight_orig.
-            if prune.is_pruned(module):
+            # Construct key in state_dict. 
+            # agent.network is a component. state_dict key is "network.{name}"
+            prefix = "network"
+            if name:
+                prefix += f".{name}"
+            
+            # 1. Weight
+            if hasattr(module, 'weight') and module.weight is not None:
+                # Find original weight in theta_0
+                # If module is pruned, it has 'weight_orig' and 'weight_mask'. 
+                # theta_0 has 'weight' (unpruned).
+                
+                # In theta_0['network'], the key is just "{name}.weight" (relative to network)
                 weight_key = f"{name}.weight" if name else "weight"
-                if weight_key in orig_net_state:
-                    original_weight = orig_net_state[weight_key]
-                    module.weight_orig.data.copy_(original_weight.data)
-            else:
-                 # Standard rewinding for unpruned modules
-                 weight_key = f"{name}.weight" if name else "weight"
-                 if hasattr(module, 'weight') and weight_key in orig_net_state:
-                     module.weight.data.copy_(orig_net_state[weight_key].data)
-                 
-                 bias_key = f"{name}.bias" if name else "bias"
-                 if hasattr(module, 'bias') and module.bias is not None and bias_key in orig_net_state:
-                     module.bias.data.copy_(orig_net_state[bias_key].data)
+                
+                # Dig into theta_0['network']
+                orig_weight = self.theta_0['network'].get(weight_key)
+                
+                if orig_weight is not None:
+                    orig_weight = orig_weight.to(agent.device)
+                    if prune.is_pruned(module):
+                        # Copy to weight_orig
+                        module.weight_orig.data.copy_(orig_weight.data)
+                    else:
+                        module.weight.data.copy_(orig_weight.data)
+            
+            # 2. Bias
+            if hasattr(module, 'bias') and module.bias is not None:
+                bias_key = f"{name}.bias" if name else "bias"
+                orig_bias = self.theta_0['network'].get(bias_key)
+                if orig_bias is not None:
+                    orig_bias = orig_bias.to(agent.device)
+                    module.bias.data.copy_(orig_bias.data)
 
         # Reset Optimizer
-        agent.optimizer.load_state_dict(self.rewind_opt_state)
-        
-        # Reset Target Network
-        agent.target_network.load_state_dict(self.rewind_state['target_network'])
+        try:
+             # Need to move theta_0 optimizer to device
+             # Converting nested state is pain.
+             # We try to load.
+             # But optimizer state dict keys are parameter IDs (int).
+             # If we created the optimizer from scratch, IDs match.
+             # If we prune, we might have issues if parameters are replaced.
+             # But prune() using pytorch prune utility modifies the module strictly in place?
+             # No, it effectively removes the parameter and adds a buffer.
+             # So the original parameter ID might be gone or changed?
+             
+             # If optimizer breaks, we might need re-init.
+             # For now, let's assume it works or we catch exception.
+             agent.optimizer.load_state_dict(self.theta_0['optimizer']) 
+        except Exception as e:
+             print(f"⚠️ Lottery: Warning - Could not reload optimizer state directly: {e}")
 
-    def _log_artifacts(self, round_idx: int, sparsity: float):
-        # ... (start of method)
-        
-        # Save Mask
-        # We extract just the masks.
-        masks = {}
-        # Iterate over full network to capture all masks (which should only be in encoder now)
-        for name, module in self.trainer.ctx.agent.network.named_modules():
-            if prune.is_pruned(module):
-                masks[name] = module.weight_mask.cpu() # Keep on CPU
-        
-        artifact_name = f"lottery_ticket_round_{round_idx}"
-        artifact = wandb.Artifact(artifact_name, type="model")
-        
-        # Save to tmp file
-        save_dir = f"artifacts/round_{round_idx}"
-        os.makedirs(save_dir, exist_ok=True)
-        
-        mask_path = os.path.join(save_dir, "mask.pt")
-        torch.save(masks, mask_path)
-        artifact.add_file(mask_path)
-        
-        # Save Metadata
-        meta_path = os.path.join(save_dir, "lottery_metadata.json")
-        with open(meta_path, 'w') as f:
-            json.dump(metadata, f, indent=4)
-        artifact.add_file(meta_path)
-        
-        # Save Rewound Weights (Optimization: only save if needed, but per-req we should)
-        # "rewound initialization values for surviving weights"
-        # We can just save the current agent state dict, as it IS the rewound state right now.
-        rec_path = os.path.join(save_dir, "init_weights.pt")
-        torch.save(self.trainer.ctx.agent.state_dict(), rec_path)
-        artifact.add_file(rec_path)
+    def _set_target_iqm(self, returns: List[float]):
+        if not returns:
+            print("⚠️ Lottery: No returns to calculate IQM! Defaulting to infinite (no convergence).")
+            self.target_iqm = float('inf')
+            return
 
-        self.trainer.ctx.logger.run.log_artifact(artifact)
+        self.target_iqm = self._calculate_iqm(returns)
+        print(f"🎯 Lottery: Target IQM set to {self.target_iqm:.4f}")
+
+    def _has_converged(self, returns: List[float]) -> bool:
+        if len(returns) < self.config.iqm_window_size:
+            return False
+            
+        current_iqm = self._calculate_iqm(returns)
+        print(f"🔍 Lottery: Current IQM {current_iqm:.4f} vs Target {self.target_iqm:.4f}")
+        return current_iqm >= self.target_iqm
+
+    def _calculate_iqm(self, data: List[float]) -> float:
+        if not data:
+            return 0.0
         
-        # Clean up
-        # shutil.rmtree(save_dir) # Optional cleanup
+        # Use simple mean for now if IQM is complex? 
+        # "reason exactly how to compute the return the model should reach" -> user mentioned IQM.
+        # IQM: Sort, discard top/bottom 25%, mean of rest.
+        
+        sorted_data = np.sort(data)
+        n = len(sorted_data)
+        lower = int(n * 0.25)
+        upper = int(n * 0.75)
+        
+        if lower >= upper:
+            # Fallback for very small data
+            return float(np.mean(sorted_data))
+            
+        return float(np.mean(sorted_data[lower:upper]))

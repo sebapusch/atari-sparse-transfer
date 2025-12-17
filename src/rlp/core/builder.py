@@ -20,6 +20,7 @@ from rlp.core.buffer import ReplayBuffer
 from rlp.env.factory import make_env
 from rlp.pruning.base import PrunerProtocol
 from rlp.pruning.pruner import GMPPruner
+from rlp.pruning.lottery import LotteryPruner, LotteryConfig
 from rlp.pruning.scheduler import LinearScheduler, CubicScheduler
 from rlp.training.schedule import LinearSchedule, ScheduleProtocol
 from rlp.core.trainer import TrainingConfig, TrainingContext
@@ -154,12 +155,16 @@ class Builder:
                     update_frequency=self.config.pruning.update_frequency,
                 )
             case 'lth':
-                # LTH is handled by the Lottery wrapper (External Pruning)
-                # The agent itself doesn't need an internal pruner for schedules.
-                # However, it might need to apply masks? 
-                # DQNAgent applies masks via hooks or target network updates.
-                # If we pass None, DQNAgent logic for prune(step) returns None, which is fine.
-                pruner = None
+                # Lottery Ticket Hypothesis Pruner
+                lottery_config = LotteryConfig(
+                    final_sparsity=self.config.pruning.final_sparsity,
+                    num_rounds=self.config.pruning.num_rounds,
+                    first_iteration_steps=self.config.pruning.first_iteration_steps,
+                    rewind_to_step=self.config.pruning.get("rewind_to_step", 0),
+                    pruning_rate=self.config.pruning.get("pruning_rate", 0.1),
+                    iqm_window_size=self.config.pruning.get("iqm_window_size", 100)
+                )
+                pruner = LotteryPruner(lottery_config)
             case _:
                 raise ValueError(f"Unknown pruner: {self.config.pruning.method}")
 
@@ -203,6 +208,7 @@ class Builder:
             save_frequency=self.config.train.checkpoint_interval,
             batch_size=self.config.algorithm.batch_size,
             seed=self.config.seed,
+            delegate_stopping=self.config.train.get("delegate_stopping", False)
         )
     
     def build_epsilon_schedule(self) -> ScheduleProtocol:

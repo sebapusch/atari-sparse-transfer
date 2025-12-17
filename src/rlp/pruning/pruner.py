@@ -6,7 +6,7 @@ import torch.nn.utils.prune as prune
 import numpy as np
 from typing import Dict, Optional, List, Tuple
 
-from rlp.pruning.base import PrunerProtocol
+from rlp.pruning.base import PrunerProtocol, PruningContext
 from rlp.pruning.scheduler import SparsityScheduler
 from rlp.pruning.utils import get_prunable_modules, calculate_sparsity
 
@@ -19,7 +19,7 @@ class BasePruner(PrunerProtocol):
         self.scheduler = scheduler
         self.prunable_types = (nn.Linear, nn.Conv2d)
 
-    def prune(self, model: nn.Module, step: int) -> float | None:
+    def prune(self, model: nn.Module, context: PruningContext) -> float | None:
         """Update masks based on step."""
         return None
 
@@ -32,7 +32,8 @@ class GMPPruner(BasePruner):
         super().__init__(scheduler)
         self.update_frequency = update_frequency
 
-    def prune(self, model: nn.Module, step: int) -> float | None:
+    def prune(self, model: nn.Module, context: PruningContext) -> float | None:
+        step = context.step
         if step % self.update_frequency != 0:
             return None
 
@@ -79,7 +80,8 @@ class LTHPruner(BasePruner):
         self.pruning_rate = pruning_rate
         self.pruning_steps = set(pruning_steps) if pruning_steps else set()
 
-    def update(self, model: nn.Module, step: int) -> Dict[str, float]:
+    def update(self, model: nn.Module, context: PruningContext) -> Dict[str, float]:
+        step = context.step
         if step not in self.pruning_steps:
             return {}
             
@@ -102,7 +104,8 @@ class RandomPruner(BasePruner):
         super().__init__(scheduler)
         self.update_frequency = update_frequency
 
-    def update(self, model: nn.Module, step: int) -> Dict[str, float]:
+    def update(self, model: nn.Module, context: PruningContext) -> Dict[str, float]:
+        step = context.step
         if step % self.update_frequency != 0:
             return {}
 

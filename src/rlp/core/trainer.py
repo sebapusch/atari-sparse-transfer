@@ -12,6 +12,7 @@ from rlp.core.logger import LoggerProtocol
 from rlp.core.buffer import ReplayBuffer
 from rlp.agent.base import AgentProtocol
 from rlp.training.schedule import ScheduleProtocol
+from rlp.pruning.base import PruningContext
 
 @dataclass
 class TrainingContext:
@@ -30,6 +31,7 @@ class TrainingConfig:
     save_frequency: int
     batch_size: int
     seed: int
+    delegate_stopping: bool = False
 
 
 class Trainer:
@@ -44,7 +46,12 @@ class Trainer:
 
         global_step = self.start_step
         
-        while global_step <= self.cfg.total_steps:
+        self.recent_returns = []
+        
+        while True:
+            if self._should_stop(global_step):
+                break
+
             epsilon = self.ctx.epsilon_scheduler[global_step]
 
             actions = self._get_actions(obs, global_step, epsilon)
@@ -68,7 +75,6 @@ class Trainer:
                 global_step += 1
                 continue
 
-            ### Training
             metrics = {}
             batch = self.ctx.buffer.sample(self.cfg.batch_size)
             agent_metrics = self.ctx.agent.update(batch, step=global_step)
@@ -76,7 +82,7 @@ class Trainer:
             for metric in agent_metrics:
                 metrics[f"charts/{metric}"] = agent_metrics[metric]
 
-            sparsity = self.ctx.agent.prune(global_step)
+            sparsity = self._run_pruning(global_step)
 
             if sparsity is not None:
                 metrics["charts/sparsity"] = sparsity
@@ -92,6 +98,22 @@ class Trainer:
         self._save(step=global_step, epsilon=0.0)
         self.ctx.envs.close()
         self.ctx.logger.close()
+
+    def _should_stop(self, step: int) -> bool:
+        if self.cfg.delegate_stopping:
+            return self.ctx.agent.should_stop(self._get_pruning_context(step))
+        return step > self.cfg.total_steps
+
+    def _get_pruning_context(self, step: int) -> PruningContext:
+        return PruningContext(
+            step=step,
+            agent=self.ctx.agent,
+            recent_episodic_returns=self.recent_returns
+        )
+
+    def _run_pruning(self, step: int) -> float | None:
+         ctx = self._get_pruning_context(step)
+         return self.ctx.agent.prune(ctx)
 
     def _is_training_step(self, step: int) -> bool:
         return (step >= self.cfg.learning_starts and
@@ -146,6 +168,11 @@ class Trainer:
 
         if not returns:
             return
+
+        self.recent_returns.extend(returns)
+        # Keep last 100
+        if len(self.recent_returns) > 100:
+            self.recent_returns = self.recent_returns[-100:]
 
         # Log mean to capture trend of the batch
         self.ctx.logger.log_metrics({

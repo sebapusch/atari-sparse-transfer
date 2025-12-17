@@ -80,11 +80,21 @@ class DQNAgent(AgentProtocol):
     def finished_training(self, step: int) -> None:
         self._update_target_network()
 
-    def prune(self, step: int) -> float | None:
+    def prune(self, context: Any) -> float | None:
+        """
+        Context is typed as Any here to avoid circular dependencies with PruningContext 
+        but implementation expects PruningContext.
+        """
         if self.pruner is None:
             return None
 
-        return self.pruner.prune(self.network.encoder, step)
+        return self.pruner.prune(self.network.encoder, context)
+
+
+    def should_stop(self, context: Any) -> bool:
+        if self.pruner is None:
+            return False
+        return self.pruner.should_stop(context)
 
     def _update_target_network(self) -> None:
         """
