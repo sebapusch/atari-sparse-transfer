@@ -11,14 +11,21 @@ train:
 
 algorithm:
   network:
-    encoder:
-      type: nature_cnn
-      
+    encoder: nature_cnn
+
   target_network_frequency: 10_000
   epsilon:
     decay_fraction: 0.1
     start: 1.0
     end: 0.01
+
+wandb:
+  enabled: true
+  project: "rlp-25"
+  group: "atari"
+  entity: null
+  tags: ["atari", "ddqn"]
+  job_type: "train"
 
 seed: 1
 device: cuda
