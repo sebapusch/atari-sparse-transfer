@@ -172,6 +172,8 @@ class LotteryPruner(PrunerProtocol):
 
         # 2. Rewind
         self._rewind_network(context.agent)
+
+        context.agent.update_target_network()
         
         # 3. Update State
         self.current_round += 1
@@ -259,6 +261,8 @@ class LotteryPruner(PrunerProtocol):
              agent.optimizer.load_state_dict(self.theta_0['optimizer']) 
         except Exception as e:
              print(f"⚠️ Lottery: Warning - Could not reload optimizer state directly: {e}")
+
+        
 
     def _set_target_iqm(self, returns: List[float]):
         if not returns:

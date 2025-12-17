@@ -69,33 +69,6 @@ class GMPPruner(BasePruner):
             
         return calculate_sparsity(model)
 
-
-class LTHPruner(BasePruner):
-    """
-    Lottery Ticket Hypothesis / Iterative Magnitude Pruning.
-    Prunes p% of weights every k steps.
-    """
-    def __init__(self, pruning_rate: float = 0.2, pruning_steps: List[int] = None) -> None:
-        super().__init__(None) # No continuous scheduler
-        self.pruning_rate = pruning_rate
-        self.pruning_steps = set(pruning_steps) if pruning_steps else set()
-
-    def update(self, model: nn.Module, context: PruningContext) -> Dict[str, float]:
-        step = context.step
-        if step not in self.pruning_steps:
-            return {}
-            
-        # Prune p% of remaining weights globally
-        parameters_to_prune = self.get_prunable_modules(model)
-        prune.global_unstructured(
-            parameters_to_prune,
-            pruning_method=prune.L1Unstructured,
-            amount=self.pruning_rate,
-        )
-        
-        return {"sparsity": self.calculate_sparsity(model)}
-
-
 class RandomPruner(BasePruner):
     """
     Random Pruning using torch.prune.

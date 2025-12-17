@@ -70,7 +70,7 @@ class DQNAgent(AgentProtocol):
         self.optimizer.step()
 
         if step % self.cfg.target_network_frequency == 0:
-            self._update_target_network()
+            self.update_target_network()
 
         return {
             "loss": loss.item(),
@@ -78,7 +78,7 @@ class DQNAgent(AgentProtocol):
         }
 
     def finished_training(self, step: int) -> None:
-        self._update_target_network()
+        self.update_target_network()
 
     def prune(self, context: Any) -> float | None:
         """
@@ -96,7 +96,7 @@ class DQNAgent(AgentProtocol):
             return False
         return self.pruner.should_stop(context)
 
-    def _update_target_network(self) -> None:
+    def update_target_network(self) -> None:
         """
         Mask aware target network update.
         Assumes self.target_network is structurally identical to self.network

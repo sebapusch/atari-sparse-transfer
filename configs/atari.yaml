@@ -1,0 +1,21 @@
+defaults:
+  - algorithm: ddqn
+  - env: atari
+  - pruning: none
+  - train: default
+  - _self_
+
+train:
+  total_timesteps: 10_000_000
+  buffer_size: 1_000_000
+
+algorithm:
+  network:
+    encoder:
+      type: nature_cnn
+      
+  target_network_frequency: 10_000
+  epsilon:
+    decay_fraction: 0.1
+    start: 1.0
+    end: 0.01
