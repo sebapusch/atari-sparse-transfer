@@ -3,4 +3,10 @@ defaults:
   - override pruning: lth
   - _self_
 
+wandb:
+  tags: ["minatar", "ddqn", "lth"]
 
+output_dir: "../models"
+
+train:
+  delegate_stopping: true

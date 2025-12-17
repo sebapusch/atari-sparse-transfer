@@ -13,6 +13,7 @@ from typing import Any, List
 from rlp.pruning.base import PrunerProtocol, PruningContext
 from rlp.pruning.utils import get_prunable_modules, calculate_sparsity
 
+
 @dataclass
 class LotteryConfig:
     final_sparsity: float
@@ -56,15 +57,17 @@ class LotteryPruner(PrunerProtocol):
         
         # 0. Initialization & Theta_0
         if self.theta_0 is None:
-            if step == 0:
-                self._save_theta_0(context.agent)
-                self.initial_sparsity = calculate_sparsity(model)
-                self._calculate_total_rounds()
-                print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
-                print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
-            elif step > 0 and self.theta_0 is None:
-                 # Attempt to init late if needed (e.g. if loaded from checkpoint that had theta_0)
-                 pass
+            # If theta_0 is not set, we save it now.
+            # This handles cases where training starts later (e.g. learning_starts > 0)
+            # or if we are just starting the LTH process.
+            # We assume the weights at this point are the "initial" weights (theta_0).
+            # If using learning_starts, no updates have happened yet, so this is correct.
+            self._save_theta_0(context.agent)
+            self.initial_sparsity = calculate_sparsity(model)
+            self._calculate_total_rounds()
+            print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
+            print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
+            print(f"Lottery: Theta_0 saved at step {step}.")
         
         # 1. First Iteration Logic
         if self.current_round == 1:

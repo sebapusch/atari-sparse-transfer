@@ -55,7 +55,7 @@ class MinAtarCNN(Encoder):
             nn.Conv2d(input_channels, 16, 3, stride=1),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(3136, hidden_dim),
+            nn.Linear(16 * 8 * 8, hidden_dim),
             nn.ReLU()
         )
         self._output_dim = hidden_dim

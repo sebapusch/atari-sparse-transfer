@@ -8,6 +8,6 @@ pruning:
   end_step: 4000000
 
 wandb:
-  tags: ${wandb.tags} + ["gmp"]
+  tags: ["minatar", "ddqn", "gmp"]
 
 output_dir: "../models"

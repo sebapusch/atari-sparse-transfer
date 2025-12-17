@@ -14,26 +14,9 @@ def main(cfg: DictConfig) -> None:
     
     trainer, resume_state = build_trainer(cfg)
     print('Initialized trainer.')
+    print('Starting Training...')
+    trainer.train()
 
-    if cfg.pruning.method == 'lth':
-        lth(cfg, trainer, resume_state)
-    else:
-        print('Starting Standard Training...')
-        trainer.train()
-
-def lth(cfg: DictConfig, trainer: Trainer, resume_state: dict) -> None:
-    from rlp.pruning.lottery import Lottery, LotteryConfig
-
-    print("Initializing Lottery Ticket Hypothesis pipeline...")
-
-    lottery_cfg = LotteryConfig(
-        final_sparsity=cfg.pruning.lottery.final_sparsity,
-        num_rounds=cfg.pruning.lottery.num_rounds,
-        rewind_to_step=cfg.pruning.lottery.get('rewind_to_step', 0)
-    )
-
-    lottery = Lottery(trainer, lottery_cfg, resume_state=resume_state)
-    lottery.run()
 
 def load_resume_config(cfg: DictConfig) -> DictConfig:
     run_id = cfg.wandb.get("id")

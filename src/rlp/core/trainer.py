@@ -38,13 +38,14 @@ class Trainer:
     def __init__(self, ctx: TrainingContext, cfg: TrainingConfig, checkpointer: Checkpointer, start_step: int = 0) -> None:
         self.ctx = ctx
         self.cfg = cfg
+        self.checkpointer = checkpointer
         self.external_state: dict[str, Any] = {}
 
     def train(self) -> None:
         envs = self.ctx.envs
         obs, _ = envs.reset(seed=self.cfg.seed)
 
-        global_step = self.start_step
+        global_step = 0
         
         self.recent_returns = []
         

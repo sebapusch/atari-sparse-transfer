@@ -158,7 +158,7 @@ class Builder:
                 # Lottery Ticket Hypothesis Pruner
                 lottery_config = LotteryConfig(
                     final_sparsity=self.config.pruning.final_sparsity,
-                    first_iteration_steps=self.config.pruning.first_iteration_steps,
+                    first_iteration_steps=self.config.train.total_timesteps,
                     rewind_to_step=self.config.pruning.get("rewind_to_step", 0),
                     pruning_rate=self.config.pruning.get("pruning_rate", 0.1),
                     iqm_window_size=self.config.pruning.get("iqm_window_size", 100)
