@@ -1,4 +1,4 @@
-name: "minatar_ddqn_sweep"
+name: "minatar_ddqn_gmp_sweep"
 
 base_config: "minatar-gmp"
 
