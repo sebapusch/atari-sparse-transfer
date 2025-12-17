@@ -205,6 +205,7 @@ class Builder:
             total_steps=self.config.train.total_timesteps,
             train_frequency=self.config.algorithm.train_frequency,
             save_frequency=self.config.train.checkpoint_interval,
+            log_interval=self.config.train.log_interval,
             batch_size=self.config.algorithm.batch_size,
             seed=self.config.seed,
             delegate_stopping=self.config.train.get("delegate_stopping", False)

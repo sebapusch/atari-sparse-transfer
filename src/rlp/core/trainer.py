@@ -29,6 +29,7 @@ class TrainingConfig:
     total_steps: int
     train_frequency: int
     save_frequency: int
+    log_interval: int
     batch_size: int
     seed: int
     delegate_stopping: bool = False
@@ -76,21 +77,22 @@ class Trainer:
                 global_step += 1
                 continue
 
-            metrics = {}
             batch = self.ctx.buffer.sample(self.cfg.batch_size)
             agent_metrics = self.ctx.agent.update(batch, step=global_step)
 
-            for metric in agent_metrics:
-                metrics[f"charts/{metric}"] = agent_metrics[metric]
+            if global_step % self.cfg.log_interval == 0:
+                metrics = {}
+                for metric in agent_metrics:
+                    metrics[f"charts/{metric}"] = agent_metrics[metric]
 
-            sparsity = self._run_pruning(global_step)
+                sparsity = self._run_pruning(global_step)
 
-            if sparsity is not None:
-                metrics["pruning/sparsity"] = sparsity
-                # Clear recent returns to force new data collection before next convergence check
-                self.recent_returns = []
+                if sparsity is not None:
+                    metrics["pruning/sparsity"] = sparsity
+                    # Clear recent returns to force new data collection before next convergence check
+                    self.recent_returns = []
 
-            self.ctx.logger.log_metrics(metrics, step=global_step)
+                self.ctx.logger.log_metrics(metrics, step=global_step)
 
             if self.cfg.save_frequency % global_step == 0:
                 self._save(global_step, epsilon)
