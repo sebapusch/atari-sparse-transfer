@@ -9,5 +9,3 @@ pruning:
 
 wandb:
   tags: ["minatar", "ddqn", "gmp"]
-
-output_dir: "../models"

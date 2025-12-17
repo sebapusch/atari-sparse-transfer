@@ -24,6 +24,7 @@ algorithm:
 
 seed: 1
 device: "cuda"
+output_dir: "../models"
 
 wandb:
   enabled: true

@@ -19,3 +19,7 @@ algorithm:
     decay_fraction: 0.1
     start: 1.0
     end: 0.01
+
+seed: 1
+device: cuda
+output_dir: "../models"

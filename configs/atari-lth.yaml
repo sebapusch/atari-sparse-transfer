@@ -13,6 +13,7 @@ wandb:
 
 training:
   learning_starts: 80_000
+  delegate_stopping: true
 
 optimizer:
   type: adam

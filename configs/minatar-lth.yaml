@@ -6,7 +6,5 @@ defaults:
 wandb:
   tags: ["minatar", "ddqn", "lth"]
 
-output_dir: "../models"
-
 train:
   delegate_stopping: true
