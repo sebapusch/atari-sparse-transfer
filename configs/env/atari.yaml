@@ -1,4 +1,3 @@
-id: "BreakoutNoFrameskip-v4"
 num_envs: 1
 capture_video: false
 frame_stack: 4
