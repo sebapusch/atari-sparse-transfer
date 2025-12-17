@@ -1,0 +1,20 @@
+defaults:
+  - atari
+  - override pruning: lth
+  - _self_
+
+pruning:
+  final_sparsity: 0.6
+  pruning_rate: 0.1
+  rewind_to_step: 80000
+
+wandb:
+  tags: ["atari", "ddqn", "lth"]
+
+training:
+  learning_starts: 80_000
+
+optimizer:
+  type: adam
+  lr: 1.0e-4
+  eps: 1.0e-8

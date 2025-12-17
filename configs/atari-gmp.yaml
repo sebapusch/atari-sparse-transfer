@@ -1,0 +1,24 @@
+# Atari + Gradual Magnitude Pruning (encoder only)
+
+defaults:
+  - atari
+  - override pruning: gmp
+  - _self_
+
+pruning:
+  final_sparsity: 0.7
+  start_step: 1000000
+  end_step: 6000000
+  update_frequency: 10000
+  scheduler: cubic
+  
+wandb:
+  tags: ["atari", "ddqn", "gmp"]
+
+optimizer:
+  type: adam
+  lr: 1.0e-4
+  eps: 1.0e-8
+  
+training:
+  gradient_clip_norm: 10.0

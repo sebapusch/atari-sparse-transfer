@@ -86,7 +86,9 @@ class Trainer:
             sparsity = self._run_pruning(global_step)
 
             if sparsity is not None:
-                metrics["charts/sparsity"] = sparsity
+                metrics["pruning/sparsity"] = sparsity
+                # Clear recent returns to force new data collection before next convergence check
+                self.recent_returns = []
 
             self.ctx.logger.log_metrics(metrics, step=global_step)
 

@@ -85,9 +85,21 @@ class LotteryPruner(PrunerProtocol):
             return self._perform_pruning_step(model, context)
 
         # 2. Subsequent Iterations
+        
+        # Check for timeout (Force prune if we waited too long)
+        # "wait at most first_iteration_steps"
+        # We use first_iteration_steps as the duration for subsequent rounds too
+        has_timed_out = step >= self.last_pruning_step + self.config.first_iteration_steps
+
         # Monitor convergence
-        if self._has_converged(context.recent_episodic_returns):
-            print(f"Lottery: Converged at round {self.current_round} (Step {step}).")
+        has_converged = self._has_converged(context.recent_episodic_returns)
+        
+        if has_converged or has_timed_out:
+            if has_converged:
+                print(f"Lottery: Converged at round {self.current_round} (Step {step}).")
+            else:
+                print(f"Lottery: Timeout at round {self.current_round} (Step {step}). Forcing prune.")
+                
             return self._perform_pruning_step(model, context)
 
         return None
