@@ -1,0 +1,6 @@
+defaults:
+  - minatar
+  - override pruning: lth
+  - _self_
+
+

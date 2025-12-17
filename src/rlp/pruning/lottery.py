@@ -16,7 +16,6 @@ from rlp.pruning.utils import get_prunable_modules, calculate_sparsity
 @dataclass
 class LotteryConfig:
     final_sparsity: float
-    num_rounds: int
     first_iteration_steps: int
     rewind_to_step: int = 0
     pruning_rate: float = 0.1 # 10% per iteration
@@ -42,6 +41,8 @@ class LotteryPruner(PrunerProtocol):
         self.last_pruning_step = 0
         
         self.initial_sparsity = 0.0
+        # Will be calculated once we know initial sparsity (at step 0 or first prune)
+        self.total_rounds: int | None = None 
 
     def prune(self, model: nn.Module, context: PruningContext) -> float | None:
         """
@@ -55,19 +56,14 @@ class LotteryPruner(PrunerProtocol):
         
         # 0. Initialization & Theta_0
         if self.theta_0 is None:
-            # We assume step can be 0 or small. If first call, save theta_0.
-            # But we need to make sure we are at the START.
-            # Ideally we save this at step 0 specifically.
             if step == 0:
                 self._save_theta_0(context.agent)
                 self.initial_sparsity = calculate_sparsity(model)
+                self._calculate_total_rounds()
                 print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
+                print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
             elif step > 0 and self.theta_0 is None:
-                 # If we missed step 0 (e.g. resume or late init), this might be an issue.
-                 # For now, let's assume strict step 0 call or we grab current state if safe?
-                 # Better to grab theta_0 from agent if it was saved elsewhere? 
-                 # Or just save now if it's still early? 
-                 # Let's enforce step 0 save or assume loaded.
+                 # Attempt to init late if needed (e.g. if loaded from checkpoint that had theta_0)
                  pass
         
         # 1. First Iteration Logic
@@ -75,15 +71,11 @@ class LotteryPruner(PrunerProtocol):
             if step < self.config.first_iteration_steps:
                 return None
             
-            # First iteration complete. Time to prune for the first time?
-            # User said "The model is trained for all train steps for the first iteration."
-            # Then "After the first iteration, ... prune every time it reaches IQM return"
-            
-            # So at end of first iteration, we:
-            # a) Calculate Target IQM (from dense training).
-            # b) Prune.
-            # c) Rewind.
-            # d) Start Round 2.
+            # Ensure total_rounds is calculated if we missed step 0 
+            # (though we should have caught it, but safely recalculate)
+            if self.total_rounds is None:
+                 self.initial_sparsity = calculate_sparsity(model)
+                 self._calculate_total_rounds()
             
             print(f"Lottery: First iteration complete at step {step}.")
             self._set_target_iqm(context.recent_episodic_returns)
@@ -99,24 +91,81 @@ class LotteryPruner(PrunerProtocol):
 
     def should_stop(self, context: PruningContext) -> bool:
         # Stop if we finished all rounds
-        return self.current_round > self.config.num_rounds
+        if self.total_rounds is None:
+            return False
+            
+        # If we just finished round X, and X == total_rounds
+        # current_round is incremented AFTER pruning.
+        # So if we want to do N rounds, we are done when current_round > N.
+        # HOWEVER, the last round is a training round too?
+        # Standard LTH: Train -> Prune -> Rewind -> Train ... until target sparsity.
+        # Usually we stop AFTER the training of the final ticket? Or just after finding it?
+        # User said: "calculates the number of iterations necessary to reach final_sparsity".
+        # Assuming we stop once we have the final ticket (and maybe trained it? or just stop?)
+        # "delegate stopping" implies we stop the whole process.
+        # If we just pruned to final sparsity, we are at start of training that final ticket.
+        # Should we train it? Probably yes.
+        # So stop when current_round > total_rounds + 1? Or just explicit check?
+        # Let's assume we stop when we exceed rounds.
+        return self.current_round > self.total_rounds
+
+    def _calculate_total_rounds(self):
+        # Calculate rounds needed.
+        # (1 - p)^n = (1 - S_final) / (1 - S_initial)
+        # n = log( (1-Sf)/(1-Si) ) / log(1-p)
+        
+        if self.initial_sparsity >= self.config.final_sparsity:
+            self.total_rounds = 0
+            return
+
+        numerator = np.log((1.0 - self.config.final_sparsity) / (1.0 - self.initial_sparsity))
+        denominator = np.log(1.0 - self.config.pruning_rate)
+        
+        if denominator == 0:
+            self.total_rounds = 0
+        else:
+            # Add small epsilon to handle floating point exact matches (e.g. 2.0 -> 2)
+            # If numerator/denominator is 2.00000000004, ceil makes it 3.
+            # We want to be tolerant.
+            ratio = numerator / denominator
+            self.total_rounds = int(np.ceil(ratio - 1e-9))
 
     def _perform_pruning_step(self, model: nn.Module, context: PruningContext) -> float:
         print(f"✂️ Lottery: Pruning (Round {self.current_round} -> {self.current_round + 1})...")
         
-        # 1. Prune
-        # "model always prunes 10% of the weights per iteration"
-        # I will assume 10% of CURRENT remaining weights.
+        # Calculate amount to prune
+        current_sparsity = calculate_sparsity(model)
         
+        amount = self.config.pruning_rate
+        
+        # Check if this is the final round
+        if self.current_round == self.total_rounds:
+            # We want to hit final_sparsity EXACTLY.
+            # amount = (target - current) / (1 - current)
+            if current_sparsity < self.config.final_sparsity:
+                numerator = self.config.final_sparsity - current_sparsity
+                denominator = 1.0 - current_sparsity
+                if denominator > 0:
+                    amount = numerator / denominator
+                else:
+                    amount = 0.0
+            else:
+                amount = 0.0
+                
+            print(f"Lottery: Final Round Correction. Calculated amount: {amount:.4f} to reach {self.config.final_sparsity}")
+
+        # Safety clamp
+        amount = max(0.0, min(1.0, amount))
+
         parameters_to_prune = get_prunable_modules(model)
         prune.global_unstructured(
             parameters_to_prune,
             pruning_method=prune.L1Unstructured,
-            amount=self.config.pruning_rate,
+            amount=amount,
         )
         
-        current_sparsity = calculate_sparsity(model)
-        print(f"Lottery: New Sparsity: {current_sparsity:.4f}")
+        new_sparsity = calculate_sparsity(model)
+        print(f"Lottery: New Sparsity: {new_sparsity:.4f}")
 
         # 2. Rewind
         self._rewind_network(context.agent)
@@ -125,9 +174,7 @@ class LotteryPruner(PrunerProtocol):
         self.current_round += 1
         self.last_pruning_step = context.step
         
-        # 4. Log artifact
-        
-        return current_sparsity
+        return new_sparsity
 
     def _save_theta_0(self, agent: Any):
         # Deepcopy to CPU to avoid memory issues

@@ -1,7 +1,6 @@
 method: lth
 final_sparsity: 0.8
-num_rounds: 3
 first_iteration_steps: 1000
-pruning_rate: 0.2
+pruning_rate: 0.1
 iqm_window_size: 20
 rewind_to_step: 0
