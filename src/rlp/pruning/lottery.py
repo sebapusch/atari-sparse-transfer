@@ -56,18 +56,19 @@ class LotteryPruner(PrunerProtocol):
         step = context.step
         
         # 0. Initialization & Theta_0
+        # 0. Initialization & Theta_0
         if self.theta_0 is None:
-            # If theta_0 is not set, we save it now.
-            # This handles cases where training starts later (e.g. learning_starts > 0)
-            # or if we are just starting the LTH process.
-            # We assume the weights at this point are the "initial" weights (theta_0).
-            # If using learning_starts, no updates have happened yet, so this is correct.
-            self._save_theta_0(context.agent)
-            self.initial_sparsity = calculate_sparsity(model)
-            self._calculate_total_rounds()
-            print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
-            print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
-            print(f"Lottery: Theta_0 saved at step {step}.")
+            # Check if we have reached the rewind step
+            if step >= self.config.rewind_to_step:
+                self._save_theta_0(context.agent)
+                self.initial_sparsity = calculate_sparsity(model)
+                self._calculate_total_rounds()
+                print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
+                print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
+                print(f"Lottery: Theta_0 saved at step {step}.")
+            else:
+                # We haven't reached the rewind point yet, so we don't save or prune
+                return None
         
         # 1. First Iteration Logic
         if self.current_round == 1:

@@ -1,0 +1,11 @@
+name: "atari_ddqn_lth_sweep"
+
+base_config: "atari-lth"
+
+params:
+  seed: [1, 2, 3]
+  env_id: 
+    - "BreakoutNoFrameskip-v4"
+    - "PongNoFrameskip-v4"
+    - "SpaceInvaders-v5"
+  sparsity: [0.60, 0.75, 0.90]
