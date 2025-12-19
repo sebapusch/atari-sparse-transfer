@@ -13,6 +13,7 @@ from rlp.core.buffer import ReplayBuffer
 from rlp.agent.base import AgentProtocol
 from rlp.training.schedule import ScheduleProtocol
 from rlp.pruning.base import PruningContext
+from rlp.core.diagnostics import ActionTracker
 
 @dataclass
 class TrainingContext:
@@ -41,6 +42,17 @@ class Trainer:
         self.cfg = cfg
         self.checkpointer = checkpointer
         self.external_state: dict[str, Any] = {}
+        
+        # Initialize diagnostics
+        try:
+             # SyncVectorEnv -> .envs[0] -> .unwrapped -> get_action_meanings()
+             # This works for both Atari and MinAtar (via wrapper or native)
+             meanings = ctx.envs.envs[0].unwrapped.get_action_meanings()
+        except AttributeError:
+             # Fallback if environment doesn't support meanings
+             meanings = [str(i) for i in range(ctx.envs.single_action_space.n)]
+             
+        self.action_tracker = ActionTracker(meanings)
 
     def train(self) -> None:
         envs = self.ctx.envs
@@ -56,7 +68,9 @@ class Trainer:
 
             epsilon = self.ctx.epsilon_scheduler[global_step]
 
+
             actions = self._get_actions(obs, global_step, epsilon)
+            self.action_tracker.update(actions)
             next_obs, rewards, terminations, truncations, infos = envs.step(actions)
             
             self._log_episodic_metrics(global_step, infos, epsilon)
@@ -93,6 +107,9 @@ class Trainer:
                     metrics["pruning/sparsity"] = sparsity
                     # Clear recent returns to force new data collection before next convergence check
                     self.recent_returns = []
+
+                # Add action diagnostics
+                metrics.update(self.action_tracker.get_metrics())
 
                 self.ctx.logger.log_metrics(metrics, step=global_step)
 

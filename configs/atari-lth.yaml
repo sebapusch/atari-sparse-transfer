@@ -11,12 +11,5 @@ pruning:
 wandb:
   tags: ["atari", "ddqn", "lth"]
 
-algorithm:
-  learning_starts: 80_000
-  optimizer:
-    type: adam
-    lr: 1.0e-4
-    eps: 1.0e-8
-
 train:
   delegate_stopping: true

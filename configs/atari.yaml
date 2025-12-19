@@ -13,6 +13,12 @@ algorithm:
   network:
     encoder: nature_cnn
 
+  learning_starts: 80_000
+  optimizer:
+    type: adam
+    lr: 1.0e-4
+    eps: 1.0e-8
+
   target_network_frequency: 10_000
   epsilon:
     decay_fraction: 0.1
