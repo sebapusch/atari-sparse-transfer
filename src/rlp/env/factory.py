@@ -27,16 +27,26 @@ def make_env(
             env = gym.wrappers.RecordEpisodeStatistics(env)
         
         else:
+            # Atari specific wrappers
+            # Check for legacy "NoFrameskip" or modern "ALE/" prefix
+            is_atari = "NoFrameskip" in env_id or env_id.startswith("ALE/")
+            
+            make_kwargs = {}
+            if is_atari:
+                # We enforce frameskip=1 at the environment level so AtariPreprocessing
+                # (which uses frame_skip=4 by default) can handle the skipping.
+                # This prevents "double skipping" errors on ALE/ environments.
+                make_kwargs["frameskip"] = 1
+
             if capture_video and idx == 0:
-                env = gym.make(env_id, render_mode="rgb_array")
+                env = gym.make(env_id, render_mode="rgb_array", **make_kwargs)
                 env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
             else:
-                env = gym.make(env_id)
+                env = gym.make(env_id, **make_kwargs)
                 
             env = gym.wrappers.RecordEpisodeStatistics(env)
-            
-            # Atari specific wrappers
-            if "NoFrameskip" in env_id:
+
+            if is_atari:
                 env = gym.wrappers.AtariPreprocessing(
                     env, 
                     noop_max=30, 
@@ -46,6 +56,16 @@ def make_env(
                     grayscale_obs=True, 
                     scale_obs=True
                 )
+                
+                # FireResetEnv (Only for specific games)
+                # Check env_id or unwrapped spec to determine if fire is needed.
+                # User specified: Breakout, Pong, SpaceInvaders.
+                # We can check the string.
+                lower_id = env_id.lower()
+                if "breakout" in lower_id or "pong" in lower_id or "spaceinvaders" in lower_id:
+                     from rlp.env.wrappers import FireResetEnv
+                     env = FireResetEnv(env)
+
                 from rlp.env.wrappers import EpisodicLifeEnv
                 env = EpisodicLifeEnv(env)
                 env = gym.wrappers.TransformReward(env, lambda r: np.sign(r))

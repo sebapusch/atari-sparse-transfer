@@ -20,7 +20,7 @@ from rlp.pruning.base import PrunerProtocol
 class DQNConfig:
     num_actions: int
     gamma: float
-    target_network_frequency: bool
+    target_network_frequency: int
     tau: float = 1.0
     prune_encoder_only: bool = False
 
@@ -53,7 +53,13 @@ class DQNAgent(AgentProtocol):
         
         with torch.no_grad():
             q_values = self.network(torch.Tensor(obs).to(self.device))
-            actions = torch.argmax(q_values, dim=1).cpu().numpy()
+            
+            # Random tie-breaking:
+            # Add small random noise to Q-values before argmax.
+            # This ensures that if multiple actions have the same max Q-value,
+            # the choice is randomized based on the seeded noise.
+            noise = torch.rand_like(q_values) * 1e-5
+            actions = torch.argmax(q_values + noise, dim=1).cpu().numpy()
         
         return actions
 

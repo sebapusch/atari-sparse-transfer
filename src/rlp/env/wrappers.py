@@ -12,6 +12,12 @@ class EpisodicLifeEnv(gym.Wrapper):
         super().__init__(env)
         self.lives = 0
         self.was_real_done = True
+        self.fire_action = -1
+        
+        # Determine if FIRE is needed
+        meanings = env.unwrapped.get_action_meanings()
+        if 'FIRE' in meanings:
+            self.fire_action = meanings.index('FIRE')
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
@@ -34,13 +40,39 @@ class EpisodicLifeEnv(gym.Wrapper):
         """
         if self.was_real_done:
             obs, info = self.env.reset(**kwargs)
-            self.lives = self.env.unwrapped.ale.lives()
         else:
-            # no-op step to advance from terminal/lost life state
-            obs, _, _, _, info = self.env.step(0)
-            self.lives = self.env.unwrapped.ale.lives()
+            # no-op step OR fire to advance from terminal/lost life state
+            action = 0
+            if self.fire_action != -1:
+                action = self.fire_action
+                
+            obs, _, _, _, info = self.env.step(action)
             
+        self.lives = self.env.unwrapped.ale.lives()
         return obs, info
+
+
+class FireResetEnv(gym.Wrapper):
+    """
+    Take action on reset for environments that are fixed until firing.
+    """
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        self.fire_action = env.unwrapped.get_action_meanings().index('FIRE')
+
+    def reset(self, **kwargs):
+        self.env.reset(**kwargs)
+        obs, _, terminated, truncated, _ = self.env.step(self.fire_action)
+        if terminated or truncated:
+            self.env.reset(**kwargs)
+        obs, _, terminated, truncated, _ = self.env.step(2) # Step 2 is often 'UP' or 'RIGHT' to break symmetry, keeping consistent with common baselines
+        if terminated or truncated:
+            self.env.reset(**kwargs)
+        return obs, {}
+
+    def step(self, ac):
+        return self.env.step(ac)
+
 
 
 class MinAtarToGymWrapper(gym.Env):

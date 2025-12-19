@@ -17,7 +17,7 @@ algorithm:
   epsilon:
     decay_fraction: 0.1
     start: 1.0
-    end: 0.01
+    end: 0.1
 
 wandb:
   enabled: true

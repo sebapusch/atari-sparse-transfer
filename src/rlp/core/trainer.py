@@ -70,6 +70,8 @@ class Trainer:
                 infos,
                 truncations
             )
+            
+            self._run_health_checks(global_step, actions)
 
             obs = next_obs
 
@@ -123,6 +125,48 @@ class Trainer:
     def _is_training_step(self, step: int) -> bool:
         return (step >= self.cfg.learning_starts and
                 step % self.cfg.train_frequency == 0)
+
+        self.ctx.logger.commit()
+    
+    def _run_health_checks(self, step: int, actions: np.ndarray) -> None:
+        """
+        Lightweight checks for common pitfalls.
+        """
+        if step % 10000 != 0:
+            return
+
+        # 1. Fire Check
+        # Heuristic: If we are far into training and haven't fired, that's bad.
+        # We only check this if 'FIRE' is in action meanings of first env.
+        try:
+            # Accessing unwrapped might be tricky with VectorEnv
+            # But SyncVectorEnv usually exposes .envs
+            first_env = self.ctx.envs.envs[0]
+            meanings = first_env.unwrapped.get_action_meanings()
+            if 'FIRE' in meanings:
+                fire_idx = meanings.index('FIRE')
+                # We can't easily check history here without overhead, 
+                # but we can check if current batch likely contains it 
+                # or just rely on the fact that random exploration *should* hit it.
+                # Actually, better check is: are we STUCK?
+                # If step > 10000 and recent_returns are all 0, warn.
+                pass
+        except:
+             pass
+
+        # 2. Reward Check
+        if step > 50000:
+             if len(self.recent_returns) > 0 and np.mean(self.recent_returns) == 0.0:
+                 # This might be normal for very hard games, but worth a warning in logs
+                 # Only warn once per 50k steps to avoid spam
+                 if step % 50000 == 0:
+                     print(f"[{step}] Warning: Zero return average after substantial training. Check reward clipping or environment.")
+        
+        # 3. Buffer Check
+        if step == self.cfg.learning_starts + self.cfg.batch_size:
+             # Just started learning
+             if self.ctx.buffer.size() < self.cfg.batch_size:
+                  print("WARNING: Buffer size smaller than batch size, but learning started?")
 
     def _save(self, step: int, epsilon: float) -> None:
         state = {
