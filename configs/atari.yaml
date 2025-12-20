@@ -19,11 +19,11 @@ algorithm:
     lr: 1.0e-4
     eps: 1.0e-8
 
-  target_network_frequency: 10_000
+  target_network_frequency: 5_000
   epsilon:
-    decay_fraction: 0.1
+    decay_fraction: 0.2
     start: 1.0
-    end: 0.1
+    end: 0.05
 
 wandb:
   enabled: true
