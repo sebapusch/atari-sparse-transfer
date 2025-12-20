@@ -7,7 +7,7 @@ from pathlib import Path
 
 # Mapping from config file keys to valid Hydra override keys
 KEY_MAPPING = {
-    "env_id": "env.id",
+    "env_id": "+env.id",
     "sparsity": "pruning.final_sparsity",
 }
 

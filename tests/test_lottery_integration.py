@@ -14,6 +14,7 @@ class TestLotteryIntegration:
         trainer = MagicMock(spec=Trainer)
         trainer.cfg = MagicMock()
         trainer.cfg.seed = 42
+        trainer.cfg.learning_starts = 100
         trainer.ctx = MagicMock()
         trainer.ctx.device = torch.device('cpu')
         # Mock Agent Structure

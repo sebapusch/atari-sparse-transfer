@@ -132,6 +132,7 @@ class Trainer:
         return PruningContext(
             step=step,
             agent=self.ctx.agent,
+            trainer=self,
             recent_episodic_returns=self.recent_returns
         )
 

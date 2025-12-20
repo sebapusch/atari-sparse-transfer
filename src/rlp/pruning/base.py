@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 class PruningContext:
     step: int
     agent: Any
+    trainer: Any = None
     recent_episodic_returns: list[float] = field(default_factory=list)
 
 class PrunerProtocol(abc.ABC):

@@ -43,7 +43,8 @@ class LotteryPruner(PrunerProtocol):
         
         self.initial_sparsity = 0.0
         # Will be calculated once we know initial sparsity (at step 0 or first prune)
-        self.total_rounds: int | None = None 
+        self.total_rounds: int | None = None
+        self.original_learning_starts: int | None = None
 
     def prune(self, model: nn.Module, context: PruningContext) -> float | None:
         """
@@ -56,11 +57,15 @@ class LotteryPruner(PrunerProtocol):
         step = context.step
         
         # 0. Initialization & Theta_0
-        # 0. Initialization & Theta_0
         if self.theta_0 is None:
             # Check if we have reached the rewind step
             if step >= self.config.rewind_to_step:
                 self._save_theta_0(context.agent)
+                
+                # Capture original learning starts
+                if getattr(context, 'trainer', None) is not None:
+                     self.original_learning_starts = context.trainer.cfg.learning_starts
+                
                 self.initial_sparsity = calculate_sparsity(model)
                 self._calculate_total_rounds()
                 print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
@@ -192,7 +197,81 @@ class LotteryPruner(PrunerProtocol):
         self.current_round += 1
         self.last_pruning_step = context.step
         
+        # 4. Perform Resets
+        if getattr(context, 'trainer', None) is not None:
+            trainer = context.trainer
+            print(f"Lottery: Resetting ReplayBuffer, Epsilon Schedule, and Learning Starts for Round {self.current_round}...")
+            
+            # Reset Buffer
+            trainer.ctx.buffer.reset()
+            
+            # Reset Epsilon Schedule
+            if hasattr(trainer.ctx.epsilon_scheduler, 'reset'):
+                 trainer.ctx.epsilon_scheduler.reset(step=context.step)
+            
+            # Reset Learning Starts
+            if self.original_learning_starts is not None:
+                new_learning_starts = context.step + self.original_learning_starts
+                trainer.cfg.learning_starts = new_learning_starts
+                print(f"Lottery: New learning_starts set to {new_learning_starts} (Original: {self.original_learning_starts})")
+        
+        self._log_artifacts(context, self.current_round)
+
         return new_sparsity
+
+    def _log_artifacts(self, context: PruningContext, round_num: int):
+        """
+        Saves theta_0 and the current masked (winning) ticket to artifacts.
+        """
+        if getattr(context, 'trainer', None) is None:
+             return
+
+        trainer = context.trainer
+        
+        # We need a directory for this round
+        # Artifacts usually go to wandb or disk.
+        # Let's use checkpointer dir or just wandb.
+        
+        # 1. Save Theta_0 (Only once, but user asked if it is stored at end of each run, maybe implied available?)
+        # We save it every round in a "winning_tickets/round_X" folder?
+        # Actually, theta_0 is constant. But the TICKET is theta_0 + Mask.
+        
+        # Let's save "ticket_round_{X}.pt" which contains:
+        # - theta_0 weights (which are currently in the agent due to rewind)
+        # - masks (which are in the agent buffers)
+        # So we just save the current agent state_dict!
+        
+        try:
+             import wandb
+             if wandb.run is None:
+                 wandb = None
+        except ImportError:
+             wandb = None
+
+        save_dir = os.path.join(trainer.checkpointer.checkpoint_dir, "tickets")
+        os.makedirs(save_dir, exist_ok=True)
+        
+        filename = os.path.join(save_dir, f"ticket_round_{round_num}.pt")
+        
+        state = {
+            'agent': trainer.ctx.agent.state_dict(), # This has weights=theta_0 and masks
+            'sparsity': calculate_sparsity(trainer.ctx.agent.network),
+            'round': round_num,
+            'theta_0': self.theta_0 # Redundant but explicit as requested
+        }
+        
+        torch.save(state, filename)
+        print(f"💾 Lottery: Saved winning ticket for round {round_num} to {filename}")
+        
+        if wandb:
+            artifact = wandb.Artifact(
+                name=f"ticket-round-{round_num}",
+                type="winning-ticket",
+                description=f"Winning Ticket after round {round_num} (Sparsity {state['sparsity']:.2f})"
+            )
+            artifact.add_file(filename)
+            wandb.log_artifact(artifact)
+            print("cloud Lottery: Logged artifact to WandB.")
 
     def _save_theta_0(self, agent: Any):
         # Deepcopy to CPU to avoid memory issues

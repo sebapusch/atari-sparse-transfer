@@ -1,0 +1,11 @@
+name: "minatar_ddqn_lth_sweep"
+
+base_config: "minatar-lth"
+
+params:
+  seed: [1, 2, 3]
+  env_id: 
+    - "MinAtar/breakout"
+    - "MinAtar/seaquest"
+    - "MinAtar/space_invaders"
+  sparsity: [0.60, 0.75, 0.90]
