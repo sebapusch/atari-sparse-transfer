@@ -68,9 +68,9 @@ class LotteryPruner(PrunerProtocol):
                 
                 self.initial_sparsity = calculate_sparsity(model)
                 self._calculate_total_rounds()
-                print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
-                print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
-                print(f"Lottery: Theta_0 saved at step {step}.")
+                # print(f"Lottery: Initial sparsity {self.initial_sparsity:.4f}")
+                # print(f"Lottery: Calculated total rounds needed: {self.total_rounds}")
+                # print(f"Lottery: Theta_0 saved at step {step}.")
             else:
                 # We haven't reached the rewind point yet, so we don't save or prune
                 return None
@@ -86,7 +86,7 @@ class LotteryPruner(PrunerProtocol):
                  self.initial_sparsity = calculate_sparsity(model)
                  self._calculate_total_rounds()
             
-            print(f"Lottery: First iteration complete at step {step}.")
+            # print(f"Lottery: First iteration complete at step {step}.")
             self._set_target_iqm(context.recent_episodic_returns)
             return self._perform_pruning_step(model, context)
 
@@ -102,9 +102,11 @@ class LotteryPruner(PrunerProtocol):
         
         if has_converged or has_timed_out:
             if has_converged:
-                print(f"Lottery: Converged at round {self.current_round} (Step {step}).")
+                pass 
+                # print(f"Lottery: Converged at round {self.current_round} (Step {step}).")
             else:
-                print(f"Lottery: Timeout at round {self.current_round} (Step {step}). Forcing prune.")
+                pass
+                # print(f"Lottery: Timeout at round {self.current_round} (Step {step}). Forcing prune.")
                 
             return self._perform_pruning_step(model, context)
 
@@ -112,22 +114,9 @@ class LotteryPruner(PrunerProtocol):
 
     def should_stop(self, context: PruningContext) -> bool:
         # Stop if we finished all rounds
-        if self.total_rounds is None:
-            return False
-            
-        # If we just finished round X, and X == total_rounds
-        # current_round is incremented AFTER pruning.
-        # So if we want to do N rounds, we are done when current_round > N.
-        # HOWEVER, the last round is a training round too?
-        # Standard LTH: Train -> Prune -> Rewind -> Train ... until target sparsity.
-        # Usually we stop AFTER the training of the final ticket? Or just after finding it?
-        # User said: "calculates the number of iterations necessary to reach final_sparsity".
-        # Assuming we stop once we have the final ticket (and maybe trained it? or just stop?)
-        # "delegate stopping" implies we stop the whole process.
-        # If we just pruned to final sparsity, we are at start of training that final ticket.
-        # Should we train it? Probably yes.
-        # So stop when current_round > total_rounds + 1? Or just explicit check?
-        # Let's assume we stop when we exceed rounds.
+        # Stop if current_round exceeds total_rounds.
+        # Note: current_round is incremented AFTER the pruning step of that round.
+        # So when we complete round N (the final round), self.current_round becomes N+1.
         return self.current_round > self.total_rounds
 
     def _calculate_total_rounds(self):
@@ -152,7 +141,7 @@ class LotteryPruner(PrunerProtocol):
             self.total_rounds = int(np.ceil(ratio - 1e-9))
 
     def _perform_pruning_step(self, model: nn.Module, context: PruningContext) -> float:
-        print(f"✂️ Lottery: Pruning (Round {self.current_round} -> {self.current_round + 1})...")
+        # print(f"✂️ Lottery: Pruning (Round {self.current_round} -> {self.current_round + 1})...")
         
         # Calculate amount to prune
         current_sparsity = calculate_sparsity(model)
@@ -173,7 +162,7 @@ class LotteryPruner(PrunerProtocol):
             else:
                 amount = 0.0
                 
-            print(f"Lottery: Final Round Correction. Calculated amount: {amount:.4f} to reach {self.config.final_sparsity}")
+            # print(f"Lottery: Final Round Correction. Calculated amount: {amount:.4f} to reach {self.config.final_sparsity}")
 
         # Safety clamp
         amount = max(0.0, min(1.0, amount))
@@ -186,7 +175,7 @@ class LotteryPruner(PrunerProtocol):
         )
         
         new_sparsity = calculate_sparsity(model)
-        print(f"Lottery: New Sparsity: {new_sparsity:.4f}")
+        # print(f"Lottery: New Sparsity: {new_sparsity:.4f}")
 
         # 2. Rewind
         self._rewind_network(context.agent)
@@ -200,7 +189,7 @@ class LotteryPruner(PrunerProtocol):
         # 4. Perform Resets
         if getattr(context, 'trainer', None) is not None:
             trainer = context.trainer
-            print(f"Lottery: Resetting ReplayBuffer, Epsilon Schedule, and Learning Starts for Round {self.current_round}...")
+            # print(f"Lottery: Resetting ReplayBuffer, Epsilon Schedule, and Learning Starts for Round {self.current_round}...")
             
             # Reset Buffer
             trainer.ctx.buffer.reset()
@@ -213,7 +202,7 @@ class LotteryPruner(PrunerProtocol):
             if self.original_learning_starts is not None:
                 new_learning_starts = context.step + self.original_learning_starts
                 trainer.cfg.learning_starts = new_learning_starts
-                print(f"Lottery: New learning_starts set to {new_learning_starts} (Original: {self.original_learning_starts})")
+                # print(f"Lottery: New learning_starts set to {new_learning_starts} (Original: {self.original_learning_starts})")
         
         self._log_artifacts(context, self.current_round)
 
@@ -271,7 +260,7 @@ class LotteryPruner(PrunerProtocol):
             )
             artifact.add_file(filename)
             wandb.log_artifact(artifact)
-            print("cloud Lottery: Logged artifact to WandB.")
+            # print("cloud Lottery: Logged artifact to WandB.")
 
     def _save_theta_0(self, agent: Any):
         # Deepcopy to CPU to avoid memory issues
@@ -286,7 +275,7 @@ class LotteryPruner(PrunerProtocol):
                      if isinstance(subv, torch.Tensor):
                          v[subk] = subv.cpu()
         
-        print("Lottery: Saved theta_0.")
+        # print("Lottery: Saved theta_0.")
 
     def _rewind_network(self, agent: Any):
         print(f"⏪ Lottery: Rewinding to theta_0...")
@@ -363,14 +352,14 @@ class LotteryPruner(PrunerProtocol):
             return
 
         self.target_iqm = self._calculate_iqm(returns)
-        print(f"🎯 Lottery: Target IQM set to {self.target_iqm:.4f}")
+        # print(f"🎯 Lottery: Target IQM set to {self.target_iqm:.4f}")
 
     def _has_converged(self, returns: List[float]) -> bool:
         if len(returns) < self.config.iqm_window_size:
             return False
             
         current_iqm = self._calculate_iqm(returns)
-        print(f"🔍 Lottery: Current IQM {current_iqm:.4f} vs Target {self.target_iqm:.4f}")
+        # print(f"🔍 Lottery: Current IQM {current_iqm:.4f} vs Target {self.target_iqm:.4f}")
         return current_iqm >= self.target_iqm
 
     def _calculate_iqm(self, data: List[float]) -> float:

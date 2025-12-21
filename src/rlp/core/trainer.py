@@ -256,10 +256,13 @@ class Trainer:
                        rewards: np.ndarray,
                        infos: dict,
                        truncations: ArrayType):
-        real_next_obs = next_obs.copy()
-        for idx, trunc in enumerate(truncations):
-            if trunc:
-                real_next_obs[idx] = infos["final_observation"][idx]
+        if np.any(truncations):
+            real_next_obs = next_obs.copy()
+            for idx, trunc in enumerate(truncations):
+                if trunc:
+                    real_next_obs[idx] = infos["final_observation"][idx]
+        else:
+            real_next_obs = next_obs
 
         self.ctx.buffer.add(obs, real_next_obs, actions, rewards, terminations, infos)
 
