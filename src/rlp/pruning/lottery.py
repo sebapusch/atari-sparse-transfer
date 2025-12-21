@@ -114,9 +114,9 @@ class LotteryPruner(PrunerProtocol):
 
     def should_stop(self, context: PruningContext) -> bool:
         # Stop if we finished all rounds
-        # Stop if current_round exceeds total_rounds.
-        # Note: current_round is incremented AFTER the pruning step of that round.
-        # So when we complete round N (the final round), self.current_round becomes N+1.
+        if self.total_rounds is None:
+            return False
+
         return self.current_round > self.total_rounds
 
     def _calculate_total_rounds(self):
