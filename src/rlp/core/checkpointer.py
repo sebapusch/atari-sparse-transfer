@@ -59,7 +59,7 @@ class Checkpointer:
         filename = f"checkpoint_{global_step}.pt"
         filepath = os.path.join(self.checkpoint_dir, filename)
 
-        tmp_path = filepath + ".tmp"
+        tmp_path = filepath + f".tmp.{os.getpid()}"
         torch.save(state, tmp_path)
         os.replace(tmp_path, filepath)
 
