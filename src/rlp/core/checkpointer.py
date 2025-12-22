@@ -63,6 +63,8 @@ class Checkpointer:
         torch.save(state, tmp_path)
         os.replace(tmp_path, filepath)
 
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
         # 2. Upload to WandB
         if self.wandb_enabled:
             artifact = wandb.Artifact(
