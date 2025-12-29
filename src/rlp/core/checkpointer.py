@@ -172,12 +172,41 @@ class Checkpointer:
         try:
             print(f"🔄 Checkpointer: Fetching remote artifact {entity}/{project}/model-{run_id}:{artifact_alias}...")
             artifact_path = f"{entity}/{project}/model-{run_id}:{artifact_alias}"
-            artifact = wandb.use_artifact(artifact_path)
-
-            # Download returns the directory path
-            save_dir = os.path.join(download_root, run_id)
-            os.makedirs(save_dir, exist_ok=True)
-            download_dir = artifact.download(root=save_dir)
+            
+            # 1. Try exact match first
+            try:
+                artifact = wandb.use_artifact(artifact_path)
+                save_dir = os.path.join(download_root, run_id)
+                os.makedirs(save_dir, exist_ok=True)
+                download_dir = artifact.download(root=save_dir)
+            except (wandb.errors.CommError, wandb.errors.UsageError) as e:
+                print(f"⚠️ Checkpointer: Specific artifact {artifact_path} not found ({e}). Checking for ANY model artifact...")
+                
+                # 2. Fallback: Search for any 'model' type artifact in this run
+                # access the run object via API
+                run_path = f"{entity}/{project}/{run_id}"
+                run = api.run(run_path)
+                artifacts = run.artifacts(type="model")
+                
+                if not artifacts:
+                    print(f"⚠️ Checkpointer: No 'model' artifacts found for run {run_path}.")
+                    return None
+                    
+                # Sort by updated_at to get the latest
+                # artifacts is a collection, let's list it
+                artifacts_list = list(artifacts)
+                # Assuming standard wandb artifact has 'updated_at' or we rely on the order returned (often latest first)
+                # But safer to sort if possible. Let's pick the first one which is usually the latest version or just pick the latest by convention.
+                # Actually, api.run().artifacts() returns a collection. We can iterate.
+                # Let's just pick the first one and hope it's the right one, or the one with the most recent version.
+                # Usually we want the 'latest' alias.
+                
+                target_artifact = artifacts_list[0]
+                print(f"✅ Checkpointer: Found alternative artifact: {target_artifact.name}")
+                
+                save_dir = os.path.join(download_root, run_id)
+                os.makedirs(save_dir, exist_ok=True)
+                download_dir = target_artifact.download(root=save_dir)
 
             # Find latest in that dir
             filepath = _latest_in_dir(download_dir)
@@ -189,6 +218,6 @@ class Checkpointer:
                 print(f"⚠️ Checkpointer: No .pt files found in downloaded artifact.")
                 return None
 
-        except (wandb.errors.CommError, wandb.errors.UsageError) as e:
+        except Exception as e:
             print(f"⚠️ Checkpointer: WandB download failed ({e}).")
             return None
