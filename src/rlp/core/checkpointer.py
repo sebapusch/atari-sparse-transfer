@@ -28,7 +28,7 @@ def _latest_in_dir(directory: str) -> str | None:
 
 
 class Checkpointer:
-    def __init__(self, checkpoint_base_dir: str, run_id: str | None):
+    def __init__(self, checkpoint_base_dir: str, run_id: str | None, entity: str | None = None, project: str | None = None):
         # 1. Priority: Manual ID > WandB ID > Timestamp
         if run_id is not None:
             self.run_id = run_id
@@ -36,6 +36,9 @@ class Checkpointer:
             self.run_id = wandb.run.id
         else:
             self.run_id = str(int(time.time()))
+
+        self.entity = entity
+        self.project = project
 
         # 2. Only use WandB features if WandB is actually active,
         # and we are running the correct run ID.
@@ -85,23 +88,22 @@ class Checkpointer:
         filepath = None
 
         # A. Try downloading from WandB
-        if self.wandb_enabled:
-            try:
-                print(f"🔄 Checkpointer: Fetching remote artifact for run {self.run_id}...")
-                artifact_path = f"{wandb.run.entity}/{wandb.run.project}/model-{self.run_id}:latest"
-                artifact = wandb.use_artifact(artifact_path)
-
-                # Download returns the directory path where files were downloaded
-                download_dir = artifact.download(root=self.checkpoint_dir)
-
-                # Find the latest checkpoint in the newly downloaded files
-                filepath = _latest_in_dir(download_dir)
-
-                if filepath:
-                    print(f"✅ Checkpointer: Found remote checkpoint: {filepath}")
-
-            except (wandb.errors.CommError, wandb.errors.UsageError) as e:
-                print(f"⚠️ Checkpointer: WandB download failed ({e}). Checking local...")
+        # A. Try downloading from WandB
+        # We attempt this if we have a run_id, using the static helper.
+        # This handles both active runs (wandb_enabled) and inactive resumes.
+        if self.run_id and (self.wandb_enabled or (self.project and self.entity)): 
+             # Use the static download method which handles api/active run logic
+             downloaded = Checkpointer.download_checkpoint(
+                 run_id=self.run_id,
+                 artifact_alias='latest',
+                 download_root=os.path.dirname(self.checkpoint_dir), # download_checkpoint appends run_id
+                 entity=self.entity,
+                 project=self.project
+             )
+             if downloaded:
+                 # Check if the downloaded file is newer than what we might have locally
+                 # (If download_checkpoint returns a path, it just downloaded or found it)
+                 filepath = downloaded
 
         # B. Fallback: Search local directory (if WandB failed or returned nothing)
         if filepath is None:
@@ -152,13 +154,20 @@ class Checkpointer:
         """
         Static helper to fetch a checkpoint from a remote WandB run.
         """
-        if wandb is None or wandb.run is None:
+        if wandb is None:
             print("⚠️ Checkpointer: WandB not active, cannot download checkpoint.")
             return None
 
-        # Determine entity/project from current run if not provided
-        entity = entity or wandb.run.entity
-        project = project or wandb.run.project
+        # Determine entity/project/api
+        api = wandb.Api() 
+        
+        if wandb.run:
+             entity = entity or wandb.run.entity
+             project = project or wandb.run.project
+        
+        if not entity or not project:
+            print("⚠️ Checkpointer: Entity and Project must be specified (or active run) to download checkpoint.")
+            return None
 
         try:
             print(f"🔄 Checkpointer: Fetching remote artifact {entity}/{project}/model-{run_id}:{artifact_alias}...")

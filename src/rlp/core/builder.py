@@ -49,7 +49,14 @@ class Builder:
         
         # Resolve entity/project if not provided (requires active run or defaults)
         # If no active run, user must likely provide them or rely on WandB defaults if authenticated
-        path = f"{entity}/{project}/{run_id}" if entity and project else run_id
+        # Resolve entity/project if not provided (requires active run or defaults)
+        # If no active run, user must likely provide them or rely on WandB defaults if authenticated
+        if entity and project:
+            path = f"{entity}/{project}/{run_id}"
+        elif project:
+             path = f"{project}/{run_id}"
+        else:
+            path = run_id
         
         try:
             api = wandb.Api()
@@ -221,7 +228,9 @@ class Builder:
     def build_checkpointer(self) -> Checkpointer:
         return Checkpointer(
             checkpoint_base_dir=self.config.output_dir,
-            run_id=self.config.wandb.get("id") # Handled by checkpointer/wandb logic if None
+            run_id=self.config.wandb.get("id"), # Handled by checkpointer/wandb logic if None
+            entity=self.config.wandb.get("entity"),
+            project=self.config.wandb.get("project")
         )
 
     def build_logger(self) -> LoggerProtocol:
