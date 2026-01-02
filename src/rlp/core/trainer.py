@@ -41,6 +41,7 @@ class Trainer:
         self.ctx = ctx
         self.cfg = cfg
         self.checkpointer = checkpointer
+        self.start_step = start_step
         self.external_state: dict[str, Any] = {}
         
         # Initialize diagnostics
@@ -58,7 +59,7 @@ class Trainer:
         envs = self.ctx.envs
         obs, _ = envs.reset(seed=self.cfg.seed)
 
-        global_step = 0
+        global_step = self.start_step
         
         self.recent_returns = []
         

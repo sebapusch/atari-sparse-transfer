@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+import torch.nn.utils.prune as prune
 
 from rlp.agent.base import AgentProtocol
 from rlp.components.network import QNetwork
@@ -165,9 +166,37 @@ class DQNAgent(AgentProtocol):
         }
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
+        self._handle_pruned_loading(self.network, state_dict["network"])
         self.network.load_state_dict(state_dict["network"])
+        
+        self._handle_pruned_loading(self.target_network, state_dict["target_network"])
         self.target_network.load_state_dict(state_dict["target_network"])
+        
         self.optimizer.load_state_dict(state_dict["optimizer"])
+
+    def _handle_pruned_loading(self, module: torch.nn.Module, state_dict: Dict[str, Any]) -> None:
+        for key in state_dict.keys():
+            if key.endswith("_mask"):
+                # expected key format: path.to.module.param_mask
+                # corresponding param: path.to.module.param
+                param_name = key.split(".")[-1].replace("_mask", "")
+                module_path = ".".join(key.split(".")[:-1])
+                
+                submodule = module
+                if module_path:
+                    # Traverse to submodule
+                    try:
+                        for part in module_path.split("."):
+                            submodule = getattr(submodule, part)
+                    except AttributeError:
+                        # If structure doesn't match, we can't prune anyway. 
+                        # Actual load_state_dict will raise RuntimeError about missing keys later.
+                        continue
+                
+                # Check if already pruned.
+                # If pruned, it should have {param_name}_orig
+                if not hasattr(submodule, param_name + "_orig"):
+                     prune.identity(submodule, param_name)
 
     def to(self, device: torch.device) -> DQNAgent:
         self.device = device

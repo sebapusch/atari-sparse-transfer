@@ -22,3 +22,5 @@ fi
 
 # 3. Run python with the dynamic config and any extra arguments
 python src/rlp/entry/train.py --config-name "$CONFIG_NAME" "$@"
+
+sbatch dispatch/train.sh minatar

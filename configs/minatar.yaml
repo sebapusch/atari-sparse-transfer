@@ -28,7 +28,7 @@ output_dir: "../models"
 
 wandb:
   enabled: true
-  project: "rlp-25"
+  project: "sparsity-rl"
   group: "minatar"
   entity: null
   tags: ["minatar", "ddqn"]

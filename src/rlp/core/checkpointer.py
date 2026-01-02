@@ -85,25 +85,31 @@ class Checkpointer:
         """
         Loads latest checkpoint from WandB (if available) or local disk.
         """
-        filepath = None
+        filepath, step = Checkpointer.download_checkpoint(
+            run_id=self.run_id,
+            artifact_alias='latest',
+            download_root=os.path.dirname(self.checkpoint_dir), # download_checkpoint appends run_id
+            entity=self.entity,
+            project=self.project
+        )
 
         # A. Try downloading from WandB
         # A. Try downloading from WandB
         # We attempt this if we have a run_id, using the static helper.
         # This handles both active runs (wandb_enabled) and inactive resumes.
-        if self.run_id and (self.wandb_enabled or (self.project and self.entity)): 
-             # Use the static download method which handles api/active run logic
-             downloaded = Checkpointer.download_checkpoint(
-                 run_id=self.run_id,
-                 artifact_alias='latest',
-                 download_root=os.path.dirname(self.checkpoint_dir), # download_checkpoint appends run_id
-                 entity=self.entity,
-                 project=self.project
-             )
-             if downloaded:
-                 # Check if the downloaded file is newer than what we might have locally
-                 # (If download_checkpoint returns a path, it just downloaded or found it)
-                 filepath = downloaded
+        # if self.run_id and (self.wandb_enabled or (self.project and self.entity)): 
+        #      # Use the static download method which handles api/active run logic
+        #      downloaded = Checkpointer.download_checkpoint(
+        #          run_id=self.run_id,
+        #          artifact_alias='latest',
+        #          download_root=os.path.dirname(self.checkpoint_dir), # download_checkpoint appends run_id
+        #          entity=self.entity,
+        #          project=self.project
+        #      )
+        #      if downloaded:
+        #          # Check if the downloaded file is newer than what we might have locally
+        #          # (If download_checkpoint returns a path, it just downloaded or found it)
+        #          filepath = downloaded
 
         # B. Fallback: Search local directory (if WandB failed or returned nothing)
         if filepath is None:
@@ -117,7 +123,9 @@ class Checkpointer:
             from rlp.core.trainer import TrainingConfig
             try:
                 with torch.serialization.safe_globals([TrainingConfig]):
-                    return torch.load(filepath, map_location=device)
+                    state = torch.load(filepath, map_location=device)
+                    state['step'] = step
+                    return state
             except AttributeError:
                 # Fallback for older PyTorch versions without safe_globals
                  return torch.load(filepath, map_location=device)
@@ -150,7 +158,7 @@ class Checkpointer:
                             artifact_alias: str = 'latest',
                             download_root: str = '/tmp/checkpoints',
                             entity: Optional[str] = None,
-                            project: Optional[str] = None) -> str | None:
+                            project: Optional[str] = None) -> tuple[str, int] | None:
         """
         Static helper to fetch a checkpoint from a remote WandB run.
         """
@@ -159,23 +167,34 @@ class Checkpointer:
             return None
 
         # Determine entity/project/api
-        api = wandb.Api() 
-        
-        if wandb.run:
-             entity = entity or wandb.run.entity
-             project = project or wandb.run.project
-        
-        if not entity or not project:
-            print("⚠️ Checkpointer: Entity and Project must be specified (or active run) to download checkpoint.")
-            return None
+        api = wandb.Api()
+
+        run = api.run(f"{project}/{run_id}")
+
+        artifacts = list(run.logged_artifacts())
+        artifacts_sorted = sorted(artifacts, key=lambda a: a.created_at)
 
         try:
-            print(f"🔄 Checkpointer: Fetching remote artifact {entity}/{project}/model-{run_id}:{artifact_alias}...")
-            artifact_path = f"{entity}/{project}/model-{run_id}:{artifact_alias}"
+            # Construct path parts
+            path_prefix = f"{entity}/{project}" if entity else project
+            artifact_path = f"{path_prefix}/model-{run_id}:{artifact_alias}"
+            
+            print(f"🔄 Checkpointer: Fetching remote artifact {artifact_path}...")
             
             # 1. Try exact match first
+            # 1. Try exact match first
             try:
-                artifact = wandb.use_artifact(artifact_path)
+                # Find artifact matching alias
+                found_artifact = artifacts_sorted[-2]
+                
+                if found_artifact:
+                    artifact = found_artifact
+                else:
+                    # Default to latest if provided alias not found (or if alias is 'latest' but not tagged)
+                    artifact = artifacts_sorted[-2]
+                
+                print(f"🔄 Checkpointer: Selected artifact: {artifact.name} (aliases: {artifact.aliases})")
+
                 save_dir = os.path.join(download_root, run_id)
                 os.makedirs(save_dir, exist_ok=True)
                 download_dir = artifact.download(root=save_dir)
@@ -184,7 +203,7 @@ class Checkpointer:
                 
                 # 2. Fallback: Search for any 'model' type artifact in this run
                 # access the run object via API
-                run_path = f"{entity}/{project}/{run_id}"
+                run_path = f"{path_prefix}/{run_id}"
                 run = api.run(run_path)
                 artifacts = run.artifacts(type="model")
                 
@@ -195,11 +214,6 @@ class Checkpointer:
                 # Sort by updated_at to get the latest
                 # artifacts is a collection, let's list it
                 artifacts_list = list(artifacts)
-                # Assuming standard wandb artifact has 'updated_at' or we rely on the order returned (often latest first)
-                # But safer to sort if possible. Let's pick the first one which is usually the latest version or just pick the latest by convention.
-                # Actually, api.run().artifacts() returns a collection. We can iterate.
-                # Let's just pick the first one and hope it's the right one, or the one with the most recent version.
-                # Usually we want the 'latest' alias.
                 
                 target_artifact = artifacts_list[0]
                 print(f"✅ Checkpointer: Found alternative artifact: {target_artifact.name}")
@@ -213,11 +227,54 @@ class Checkpointer:
             
             if filepath:
                 print(f"✅ Checkpointer: Downloaded checkpoint to: {filepath}")
-                return filepath
+                return filepath, artifact.history_step
             else:
                 print(f"⚠️ Checkpointer: No .pt files found in downloaded artifact.")
                 return None
 
         except Exception as e:
             print(f"⚠️ Checkpointer: WandB download failed ({e}).")
+            return None
+
+    @staticmethod
+    def download_artifact_by_path(path: str, download_root: str = '/tmp/checkpoints') -> tuple[str, int, dict] | None:
+        """
+        Downloads a WandB artifact by its full path (e.g., 'entity/project/name:alias').
+        Returns (filepath, step, artifact_metadata).
+        """
+        if wandb is None:
+            print("⚠️ Checkpointer: WandB not active, cannot download artifact.")
+            return None
+            
+        api = wandb.Api()
+        
+        try:
+            print(f"🔄 Checkpointer: Fetching artifact {path}...")
+            artifact = api.artifact(path)
+            
+            # Use artifact ID to avoid collisions
+            save_dir = os.path.join(download_root, artifact.id)
+            os.makedirs(save_dir, exist_ok=True)
+            
+            download_dir = artifact.download(root=save_dir)
+            
+            # Find the actual .pt file
+            filepath = _latest_in_dir(download_dir)
+            
+            if filepath:
+                print(f"✅ Checkpointer: Downloaded artifact to: {filepath}")
+                # Try to get step from metadata or aliases
+                step = 0
+                if hasattr(artifact, 'history_step'):
+                    step = artifact.history_step
+                elif artifact.metadata and 'step' in artifact.metadata:
+                    step = artifact.metadata['step']
+                    
+                return filepath, step, artifact.metadata
+            else:
+                print(f"⚠️ Checkpointer: No .pt files found in artifact {path}.")
+                return None
+                
+        except Exception as e:
+            print(f"⚠️ Checkpointer: Failed to download artifact {path}: {e}")
             return None

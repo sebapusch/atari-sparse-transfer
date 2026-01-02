@@ -80,6 +80,10 @@ class Builder:
         if self.config.get("transfer", None) and self.config.transfer.source_run_id:
             self._apply_transfer(network, self.config.transfer)
 
+        # Initial Artifact: Load weights if configured
+        if self.config.get("initial_artifact", None):
+            self._apply_initial_artifact(network, self.config.initial_artifact)
+
         dqn_config = DQNConfig(
             num_actions=num_actions,
             gamma=self.config.algorithm.gamma,
@@ -296,7 +300,7 @@ class Builder:
 
         # Load state dict (safely)
         try:
-             # Use safe_globals if available, or just load
+            # Use safe_globals if available, or just load
             from rlp.core.trainer import TrainingConfig
             if hasattr(torch.serialization, 'safe_globals'):
                 with torch.serialization.safe_globals([TrainingConfig]):
@@ -323,6 +327,68 @@ class Builder:
         if transfer_config.load_head:
             print(f"📥 Transfer: Loading Head weights...")
             self._load_module_with_masks(network.head, source_net_state, prefix="head.")
+
+    def _apply_initial_artifact(self, network: QNetwork, artifact_path: str) -> None:
+        """
+        Initializes the agent's network from a full WandB artifact path.
+        Assumes the artifact contains a state dict with 'agent' or 'network' key.
+        """
+        print(f"🚀 Initialization: Loading from artifact {artifact_path}")
+        
+        result = Checkpointer.download_artifact_by_path(artifact_path)
+        if not result:
+            raise ValueError(f"Failed to download initial artifact: {artifact_path}")
+            
+        filepath, step, metadata = result
+        
+        try:
+             # Use safe_globals if available, or just load
+            from rlp.core.trainer import TrainingConfig
+            if hasattr(torch.serialization, 'safe_globals'):
+                with torch.serialization.safe_globals([TrainingConfig]):
+                    state_dict = torch.load(filepath, map_location=self.device)
+            else:
+                state_dict = torch.load(filepath, map_location=self.device)
+        except Exception as e:
+            raise RuntimeError(f"Error loading initial artifact checkpoint: {e}")
+
+        # The state dict structure might vary (e.g. 'agent', 'network', or plain state dict)
+        # Checkpointer saves: {'agent': ..., 'sparsity': ..., 'round': ...} 
+        # But normal Checkpointer.save saves: {'network': ..., 'optimizer': ...}
+        
+        network_state = None
+        if 'agent' in state_dict:
+            # This is likely a lottery ticket artifact
+            # structure: agent -> { ... state_dict ... }
+            # But wait, agent.state_dict() includes 'network.encoder.X' etc.
+            # Our QNetwork expects just 'encoder.X' etc.
+            # So we need to strip 'network.' prefix
+            full_agent_state = state_dict['agent']
+            network_state = {k.replace('network.', ''): v for k, v in full_agent_state.items() if k.startswith('network.')}
+        elif 'network' in state_dict:
+             # Standard checkpoint
+             network_state = state_dict['network']
+        else:
+             # Maybe it IS the network state dict?
+             # Heuristic: check keys
+             keys = list(state_dict.keys())
+             if any(k.startswith('encoder') or k.startswith('head') for k in keys):
+                 network_state = state_dict
+        
+        if network_state is None:
+            raise ValueError("Could not locate network state dict in artifact.")
+
+        # Load into network using mask-aware loading
+        print(f"📥 Initialization: restoring network weights and masks...")
+        
+        # We process the whole network state dict
+        # Since _load_module_with_masks works by prefix, we can just treat the network as a module?
+        # No, _load_module_with_masks logic is: pass a module (e.g. encoder), and a full dictionary, and a prefix.
+        # Here we have the dictionary for the WHOLE network.
+        
+        # Let's load encoder and head separately to be safe and consistent with _apply_transfer logic
+        self._load_module_with_masks(network.encoder, network_state, prefix="encoder.")
+        self._load_module_with_masks(network.head, network_state, prefix="head.")
 
     def _load_module_with_masks(self, module: torch.nn.Module, source_state_dict: dict, prefix: str) -> None:
         """

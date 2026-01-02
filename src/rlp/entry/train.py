@@ -4,6 +4,8 @@ from omegaconf import DictConfig, OmegaConf
 from rlp.core.builder import Builder
 from rlp.core.trainer import Trainer
 
+import wandb
+
 
 @hydra.main(version_base=None, config_path="../../../configs", config_name="config")
 def main(cfg: DictConfig) -> None:
@@ -11,7 +13,8 @@ def main(cfg: DictConfig) -> None:
         cfg = load_resume_config(cfg)
     
     print(OmegaConf.to_yaml(cfg))
-    
+
+
     # Global Seeding
     import random
     import numpy as np
@@ -28,6 +31,22 @@ def main(cfg: DictConfig) -> None:
     trainer, resume_state = build_trainer(cfg)
     print('Initialized trainer.')
     print('Starting Training...')
+
+    # Source - https://stackoverflow.com/a
+    # Posted by Annirudh
+    # Retrieved 2025-12-30, License - CC BY-SA 4.0
+    # artifact = wandb.run.use_artifact('sebapusch-university-of-groningen/sparsity-rl/ticket-round-10:v26', type='winning-ticket')
+
+#    run = wandb.Api().run('sebapusch-university-of-groningen/sparsity-rl/yjfm52jk')
+#    artifacts = list(run.logged_artifacts())
+#    artifacts_sorted = sorted(artifacts, key=lambda a: a.created_at)
+#
+#    for artifact in artifacts_sorted:
+#        print(artifact.name, artifact.created_at)
+        
+
+    #exit()
+    
     trainer.train()
 
 
@@ -69,6 +88,12 @@ def build_trainer(config: DictConfig) -> tuple[Trainer, dict | None]:
              print("Resume requested but no checkpoint found. Starting from scratch.")
 
     logger = builder.build_logger()
+
+    # Sync with WandB step to avoid "history overwrite" errors
+    # If the checkpoint is older than the last logged step in WandB, we must fast-forward.
+    if wandb.run is not None and wandb.run.step > start_step:
+        print(f"⚠️ Resuming: Checkpoint step ({start_step}) is behind WandB run step ({wandb.run.step}). Fast-forwarding to avoid overwrite errors.")
+        start_step = wandb.run.step
 
     ctx = builder.build_training_context(logger)
 
