@@ -42,6 +42,16 @@ class DQNAgent(AgentProtocol):
         self.cfg = cfg
 
         self.target_network = copy.deepcopy(network).to(self.device)
+        
+        # Ensure target_network is "clean" (unpruned) so update_target_network works.
+        # Deepcopy copies pruning hooks, making it a "pruned" network with _orig params.
+        # We need to permanently apply the masks and make it a standard network.
+        for module in self.target_network.modules():
+            if prune.is_pruned(module):
+                # Robustly remove pruning only for parameters that are actually pruned
+                for name in ['weight', 'bias']:
+                    if hasattr(module, name + "_orig"):
+                        prune.remove(module, name)
 
     def select_action(self, obs: np.ndarray, epsilon: float = 0.0) -> np.ndarray:
         if obs.ndim == 3:
