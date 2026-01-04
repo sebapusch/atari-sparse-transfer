@@ -72,6 +72,8 @@ class Builder:
 
     def build_agent(self, num_actions: int, input_channels: int, pruner: PrunerProtocol | None) -> AgentProtocol:
         network = self.build_network(num_actions, input_channels)
+        network.to(self.device)  # Move to device BEFORE optimizer creation
+        
         optimizer = optim.Adam(network.parameters(),
             lr=self.config.algorithm.optimizer.lr,
             eps=self.config.algorithm.optimizer.eps)
