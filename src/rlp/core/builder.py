@@ -83,6 +83,17 @@ class Builder:
         # Initial Artifact: Load weights if configured
         if self.config.get("initial_artifact", None):
             self._apply_initial_artifact(network, self.config.initial_artifact, pruner)
+            
+            # If we are using LotteryPruner and theta_0 was loaded, we should also restore the optimizer state
+            # because the artifact represents a state where the optimizer might be "warmed up" (rewind_to_step > 0).
+            # Even if rewind_to_step=0, restoring consistency is good.
+            if pruner is not None and isinstance(pruner, LotteryPruner) and pruner.theta_0:
+                if 'optimizer' in pruner.theta_0:
+                    print("🎰 Initialization: Restoring optimizer state from theta_0 artifact.")
+                    try:
+                        optimizer.load_state_dict(pruner.theta_0['optimizer'])
+                    except Exception as e:
+                         print(f"⚠️ Initialization: Failed to load optimizer state from theta_0: {e}")
 
         dqn_config = DQNConfig(
             num_actions=num_actions,
