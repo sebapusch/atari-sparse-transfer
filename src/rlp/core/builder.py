@@ -82,7 +82,7 @@ class Builder:
 
         # Initial Artifact: Load weights if configured
         if self.config.get("initial_artifact", None):
-            self._apply_initial_artifact(network, self.config.initial_artifact)
+            self._apply_initial_artifact(network, self.config.initial_artifact, pruner)
 
         dqn_config = DQNConfig(
             num_actions=num_actions,
@@ -328,10 +328,11 @@ class Builder:
             print(f"📥 Transfer: Loading Head weights...")
             self._load_module_with_masks(network.head, source_net_state, prefix="head.")
 
-    def _apply_initial_artifact(self, network: QNetwork, artifact_path: str) -> None:
+    def _apply_initial_artifact(self, network: QNetwork, artifact_path: str, pruner: PrunerProtocol | None = None) -> None:
         """
         Initializes the agent's network from a full WandB artifact path.
         Assumes the artifact contains a state dict with 'agent' or 'network' key.
+        If Pruner is LotteryPruner, attempts to load 'theta_0'.
         """
         print(f"🚀 Initialization: Loading from artifact {artifact_path}")
         
@@ -352,28 +353,38 @@ class Builder:
         except Exception as e:
             raise RuntimeError(f"Error loading initial artifact checkpoint: {e}")
 
-        # The state dict structure might vary (e.g. 'agent', 'network', or plain state dict)
-        # Checkpointer saves: {'agent': ..., 'sparsity': ..., 'round': ...} 
-        # But normal Checkpointer.save saves: {'network': ..., 'optimizer': ...}
-        
         network_state = None
         if 'agent' in state_dict:
-            # This is likely a lottery ticket artifact
+            # THIS IS A LOTTERY TICKET
+            # 1. Load Theta_0 if available and we are using LotteryPruner
+            if pruner is not None and isinstance(pruner, LotteryPruner):
+                if 'theta_0' in state_dict:
+                    print("🎰 Initialization: Loading theta_0 from artifact into LotteryPruner.")
+                    pruner.theta_0 = state_dict['theta_0']
+                else:
+                    print("⚠️ Initialization: LotteryPruner active but no theta_0 in artifact.")
+
+            print("2. Extract Network State")
             # structure: agent -> { ... state_dict ... }
-            # But wait, agent.state_dict() includes 'network.encoder.X' etc.
-            # Our QNetwork expects just 'encoder.X' etc.
-            # So we need to strip 'network.' prefix
             full_agent_state = state_dict['agent']
-            network_state = {k.replace('network.', ''): v for k, v in full_agent_state.items() if k.startswith('network.')}
+            
+            # CASE A: Standard RLP Checkpoint (Nested 'network' dict)
+            # keys inside are typically 'encoder.X', 'head.X' (no 'network.' prefix)
+            if 'network' in full_agent_state and isinstance(full_agent_state['network'], dict):
+                 print("   Found nested 'network' dictionary in agent state. Using it directly.")
+                 network_state = full_agent_state['network']
+            else:
+                # CASE B: Flattened Agent State (legacy or converted)
+                # keys like 'network.encoder.X'
+                # We need to strip 'network.' prefix
+                print("   Assuming flattened agent state dict. Stripping 'network.' prefix.")
+                network_state = {k.replace('network.', '', 1): v for k, v in full_agent_state.items() if k.startswith('network.')}
         elif 'network' in state_dict:
-             # Standard checkpoint
-             network_state = state_dict['network']
+            network_state = state_dict['network']
         else:
-             # Maybe it IS the network state dict?
-             # Heuristic: check keys
-             keys = list(state_dict.keys())
-             if any(k.startswith('encoder') or k.startswith('head') for k in keys):
-                 network_state = state_dict
+            keys = list(state_dict.keys())
+            if any(k.startswith('encoder') or k.startswith('head') for k in keys):
+                network_state = state_dict
         
         if network_state is None:
             raise ValueError("Could not locate network state dict in artifact.")
@@ -413,7 +424,10 @@ class Builder:
                 
                 # We simply apply identity pruning to create the _mask and _orig buffers
                 # This makes the module 'pruned' and compatible with the incoming state dict
-                prune.identity(submodule, 'weight')
+                # IMPORTANT: We must do this under no_grad() so that the resulting 'weight' 
+                # attribute (which is computed) is not part of a graph and can be deepcopied.
+                with torch.no_grad():
+                    prune.identity(submodule, 'weight')
                 
         # 2. Load the weights (strict=False because we might be loading only a subset)
         # We need to filter source_state_dict to only include keys for this module

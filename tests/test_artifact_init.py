@@ -79,11 +79,14 @@ class TestArtifactInitialization:
         # We need to construct a state dict that has masks
         # Key format: "encoder.0.weight_orig", "encoder.0.weight_mask"
         
+        # Simulate NatureCNN with nested 'network' attribute to catch the 'replace' bug
+        # Agent state dict: "network.encoder.network.0.weight"
+        
         dummy_state_dict = {
-            "network": {
-                "encoder.cnn.0.weight": torch.randn(32, 4, 8, 8), # Unpruned
-                "head.fc.weight_orig": torch.randn(512, 10),    # Pruned
-                "head.fc.weight_mask": torch.ones(512, 10),
+            "agent": {
+                "network.encoder.network.0.weight": torch.randn(32, 4, 8, 8), # Unpruned
+                "network.head.fc.weight_orig": torch.randn(512, 10),    # Pruned
+                "network.head.fc.weight_mask": torch.ones(512, 10),
             }
         }
         
@@ -95,10 +98,14 @@ class TestArtifactInitialization:
                  # We need the head to have a submodule named 'fc'
                  mock_fc = MagicMock()
                  mock_network.head.named_modules.return_value = [("fc", mock_fc)]
-                 mock_network.encoder.named_modules.return_value = [] # No pruned modules in encoder for this test
+                 
+                 # Simulating NatureCNN structure for encoder
+                 mock_enc_net = MagicMock()
+                 mock_network.encoder.named_modules.return_value = [("network.0", mock_enc_net)]
                  
                  # Run
                  builder._apply_initial_artifact(mock_network, config.initial_artifact)
+
                  
                  # Verify Checkpointer called
                  MockCheckpointer.download_artifact_by_path.assert_called_with('entity/project/artifact:v0')
@@ -116,4 +123,14 @@ class TestArtifactInitialization:
                  # logic calls module.load_state_dict
                  assert mock_network.encoder.load_state_dict.called
                  assert mock_network.head.load_state_dict.called
+
+                 # CRITICAL: Verify that the keys passed to encoder load_state_dict are correct.
+                 # With the bug, "network.encoder.network.0.weight" became "encoder.0.weight" 
+                 # -> passed to encoder as "0.weight" (after stripping "encoder.")
+                 # Correct behavior: "encoder.network.0.weight" -> passed as "network.0.weight"
+                 
+                 encoder_args = mock_network.encoder.load_state_dict.call_args[0][0]
+                 print(f"DEBUG: Encoder keys: {list(encoder_args.keys())}")
+                 assert "network.0.weight" in encoder_args, \
+                     f"Expected 'network.0.weight' in encoder state dict, found {list(encoder_args.keys())}"
 

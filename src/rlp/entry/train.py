@@ -3,6 +3,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from rlp.core.builder import Builder
 from rlp.core.trainer import Trainer
+from rlp.pruning.utils import calculate_sparsity
 
 import wandb
 
@@ -100,6 +101,8 @@ def build_trainer(config: DictConfig) -> tuple[Trainer, dict | None]:
     if state and 'agent' in state:
         ctx.agent.load_state_dict(state['agent'])
     
+    print('sparsity: ', calculate_sparsity(ctx.agent.network))
+    exit()
     training_config = builder.build_training_config()
     
     return Trainer(ctx, training_config, checkpointer, start_step=start_step), state
