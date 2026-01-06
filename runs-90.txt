@@ -1,0 +1,9 @@
+minatar_ddqn_lth_sweep-space_invaders-S90-s3 -> ticket-round-13:v10
+minatar_ddqn_lth_sweep-seaquest-S90-s3 -> ticket-round-13:v9
+minatar_ddqn_lth_sweep-breakout-S90-s3 -> ticket-round-13:v8
+minatar_ddqn_lth_sweep-space_invaders-S90-s2 -> ticket-round-10:v24
+minatar_ddqn_lth_sweep-seaquest-S90-s2 -> ticket-round-16:v1
+minatar_ddqn_lth_sweep-breakout-S90-s2 -> ticket-round-10:v14
+minatar_ddqn_lth_sweep-breakout-S90-s1 -> ticket-round-16:v0
+minatar_ddqn_lth_sweep-space_invaders-S90-s1 -> ticket-round-14:v2
+minatar_ddqn_lth_sweep-seaquest-S90-s1 -> ticket-round-12:v4
