@@ -1,4 +1,5 @@
 num_envs: 1
+transfer_source: null # If set (e.g. 'breakout'), applies MinAtarTransferWrapper to remap channels
 capture_video: false
 frame_stack: 1 # MinAtar already has channels, but usually we don't stack frames in the same way, or we can. 
                # MinAtar state is (10, 10, C). If we stack 4, we get (4*C, 10, 10).

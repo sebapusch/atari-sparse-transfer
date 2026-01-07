@@ -202,12 +202,17 @@ class Builder:
             raise NotImplementedError(f"Only 1 environment is supported ({num_envs})")
 
         for i in range(num_envs):
+            transfer_source = self.config.env.get("transfer_source", None)
+            if transfer_source is None:
+                 transfer_source = self.config.get("transfer_source", None)
+
             envs.append(make_env(
                 self.config.env.id,
                 self.config.seed + i,
                 i,
                 self.config.env.capture_video,
-                self.config.wandb.name or "run"
+                self.config.wandb.name or "run",
+                transfer_source=transfer_source
             ))
 
         return gym.vector.SyncVectorEnv(envs)

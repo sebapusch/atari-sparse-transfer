@@ -126,3 +126,92 @@ class MinAtarToGymWrapper(gym.Env):
 
     def close(self):
         pass
+
+
+class MinAtarTransferWrapper(gym.ObservationWrapper):
+    """
+    Gymnasium Wrapper that intercepts the observation from a 'Target' environment
+    and re-maps its channels to match the 'Source' environment's semantic expectations.
+
+    Used for transferring pre-trained encoders (Source) to new environments (Target).
+
+    Input Shape: (C_in, 10, 10)
+    Output Shape: (C_out, 10, 10)
+    """
+
+    # Presets for common transfers
+    # Keys: [Source][Target] -> mapping_list
+    PRESETS = {
+        'breakout': {
+            'space_invaders': [0, 5, -1, 1],
+            'seaquest': [0, 4, 3, 5],
+        },
+        'space_invaders': {
+            'breakout': [0, 3, 3, 3, -1, 1],
+            'seaquest': [0, 5, 5, 5, 2, 4],
+        },
+        'seaquest': {
+            'breakout': [0, 0, -1, 2, 1, 3, 3, -1, -1, -1],
+            'space_invaders': [0, 0, 4, -1, 5, 1, 1, -1, -1, -1],
+        }
+    }
+
+    def __init__(self, env: gym.Env, mapping_list: list[int]):
+        super().__init__(env)
+        self.mapping_list = mapping_list
+
+        # Assume input observation space is Box(C_in, H, W)
+        # We need to update to Box(C_out, H, W)
+        # where C_out = len(mapping_list)
+
+        orig_space = env.observation_space
+        if not isinstance(orig_space, gym.spaces.Box):
+            raise ValueError("MinAtarTransferWrapper expects a Box observation space.")
+
+        if len(orig_space.shape) != 3:
+            raise ValueError(f"Expected 3D observation space (C, H, W), got {orig_space.shape}")
+
+        c_in, h, w = orig_space.shape
+        c_out = len(mapping_list)
+
+        # Update observation space to reflect Source channel count
+        self.observation_space = gym.spaces.Box(
+            low=orig_space.low.min(),  # Assuming uniform low/high in MinAtar
+            high=orig_space.high.max(),
+            shape=(c_out, h, w),
+            dtype=orig_space.dtype
+        )
+
+        # Pre-compute valid indices for efficiency
+        # Convert mapping list to array
+        self._mapping_array = np.array(mapping_list, dtype=int)
+        
+        # Mask for channels that map to a valid source channel (not -1)
+        self._valid_mask = (self._mapping_array != -1)
+        
+        # The actual indices to pull from the input observation
+        self._valid_indices = self._mapping_array[self._valid_mask]
+
+        # Verify indices are within bounds of input space
+        if len(self._valid_indices) > 0:
+            if self._valid_indices.max() >= c_in or self._valid_indices.min() < 0:
+                raise ValueError(f"Mapping indices out of bounds for input channels {c_in}: {self._valid_indices}")
+
+    def observation(self, obs):
+        """
+        Remap channels from Target environment (obs) to Source environment (output).
+        Handles -1 by filling with zeros.
+        """
+        # obs is (C_in, H, W)
+        # Output (C_out, H, W)
+
+        # Create output buffer of zeros with correct shape and dtype
+        new_obs = np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype)
+
+        # NumPy indexing to fill valid channels
+        # new_obs[valid_mask] selects the channels where mapping is not -1 (shape: N_valid, H, W)
+        # obs[valid_indices] selects the corresponding source channels from input (shape: N_valid, H, W)
+        if np.any(self._valid_mask):
+            new_obs[self._valid_mask] = obs[self._valid_indices]
+
+        return new_obs

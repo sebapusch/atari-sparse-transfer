@@ -16,6 +16,7 @@ def make_env(
     capture_video: bool,
     run_name: str,
     gamma: float = 0.99,
+    transfer_source: Optional[str] = None
 ) -> Callable[[], gym.Env]:
     def thunk() -> gym.Env:
         # MinAtar specific wrappers
@@ -24,6 +25,30 @@ def make_env(
             game_name = env_id.split("/")[1]
             from rlp.env.wrappers import MinAtarToGymWrapper
             env = MinAtarToGymWrapper(game_name)
+            
+            # Transfer Learning Wrapper
+            if transfer_source:
+                from rlp.env.wrappers import MinAtarTransferWrapper
+                if transfer_source not in MinAtarTransferWrapper.PRESETS.get(game_name, {}):
+                     # If generic or just error out? For now let's be strict or assume user knows what they are doing
+                     # Actually, the presets key is [Source][Target]...
+                     # Wait, PRESETS = { 'breakout': { 'space_invaders': ... } }
+                     # means Source=Breakout, Target=SpaceInvaders.
+                     # transfer_source is the Source.
+                     # game_name is the Target.
+                     
+                     # mapping = PRESETS[source][target]
+                     pass
+
+                if transfer_source in MinAtarTransferWrapper.PRESETS and \
+                   game_name in MinAtarTransferWrapper.PRESETS[transfer_source]:
+                    
+                    mapping = MinAtarTransferWrapper.PRESETS[transfer_source][game_name]
+                    print(f"Applying Transfer Wrapper: Source={transfer_source} -> Target={game_name}")
+                    env = MinAtarTransferWrapper(env, mapping)
+                else:
+                    print(f"Warning: No preset found for transfer {transfer_source} -> {game_name}")
+
             env = gym.wrappers.RecordEpisodeStatistics(env)
         
         else:
