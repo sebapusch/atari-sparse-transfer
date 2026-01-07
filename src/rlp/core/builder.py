@@ -84,7 +84,8 @@ class Builder:
 
         # Initial Artifact: Load weights if configured
         if self.config.get("initial_artifact", None):
-            self._apply_initial_artifact(network, self.config.initial_artifact, pruner)
+            load_encoder_only = self.config.get("load_encoder_only", False)
+            self._apply_initial_artifact(network, self.config.initial_artifact, pruner, load_encoder_only)
             
             # If we are using LotteryPruner and theta_0 was loaded, we should also restore the optimizer state
             # because the artifact represents a state where the optimizer might be "warmed up" (rewind_to_step > 0).
@@ -341,7 +342,7 @@ class Builder:
             print(f"📥 Transfer: Loading Head weights...")
             self._load_module_with_masks(network.head, source_net_state, prefix="head.")
 
-    def _apply_initial_artifact(self, network: QNetwork, artifact_path: str, pruner: PrunerProtocol | None = None) -> None:
+    def _apply_initial_artifact(self, network: QNetwork, artifact_path: str, pruner: PrunerProtocol | None = None, load_encoder_only: bool = False) -> None:
         """
         Initializes the agent's network from a full WandB artifact path.
         Assumes the artifact contains a state dict with 'agent' or 'network' key.
@@ -412,7 +413,11 @@ class Builder:
         
         # Let's load encoder and head separately to be safe and consistent with _apply_transfer logic
         self._load_module_with_masks(network.encoder, network_state, prefix="encoder.")
-        self._load_module_with_masks(network.head, network_state, prefix="head.")
+        
+        if not load_encoder_only:
+            self._load_module_with_masks(network.head, network_state, prefix="head.")
+        else:
+            print("   Skipping head initialization (load_encoder_only=True).")
 
     def _load_module_with_masks(self, module: torch.nn.Module, source_state_dict: dict, prefix: str) -> None:
         """

@@ -5,6 +5,8 @@ defaults:
   - train: default
   - _self_
 
+load_encoder_only: false
+
 train:
   total_timesteps: 10_000_000
   buffer_size: 1_000_000
