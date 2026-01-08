@@ -380,3 +380,117 @@ class LotteryPruner(PrunerProtocol):
             return float(np.mean(sorted_data))
             
         return float(np.mean(sorted_data[lower:upper]))
+
+class RandomLotteryPruner(LotteryPruner):
+    """
+    Implements Random Pruning with Random Reinitialization (Random LTH).
+    Pruning is done randomly, and weights are reinitialized randomly instead of rewinding.
+    """
+
+    def _save_theta_0(self, agent: Any):
+        # We do not need the actual weights for 'rewind', but we populate self.theta_0
+        # to satisfy the state checks in the base class.
+        self.theta_0 = {"dummy": True} 
+        print("🎲 RandomLottery: Initialized (skipping heavy theta_0 backup).")
+
+    def _rewind_network(self, agent: Any):
+        """
+        Reinitializes the network weights randomly.
+        For pruned layers, this reinitializes 'weight_orig' so that proper random weights remain
+        after applying the mask.
+        """
+        print(f"🎲 RandomLottery: Reinitializing weights randomly using Kaiming Uniform...")
+        
+        for name, module in agent.network.named_modules():
+            # Support Linear and Conv2d
+            if isinstance(module, (nn.Linear, nn.Conv2d)):
+                # 1. Determine tensor to initialize
+                tensor_to_init = None
+                
+                if prune.is_pruned(module):
+                    # Modify weight_orig if pruned
+                    tensor_to_init = module.weight_orig
+                elif hasattr(module, 'weight') and module.weight is not None:
+                    # Modify weight if not pruned
+                    tensor_to_init = module.weight
+                
+                if tensor_to_init is not None:
+                     # Kaiming Uniform is standard for these layers in PyTorch
+                     # We use mode='fan_in' and nonlinearity='leaky_relu' (a=sqrt(5)) which is default
+                     nn.init.kaiming_uniform_(tensor_to_init, a=np.sqrt(5))
+                     
+                # 2. Bias
+                if module.bias is not None and tensor_to_init is not None:
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(tensor_to_init)
+                    bound = 1 / np.sqrt(fan_in) if fan_in > 0 else 0
+                    nn.init.uniform_(module.bias, -bound, bound)
+        
+        # Reset Optimizer
+        # Random parameters = Invalid old optimizer state. Reset it content but keep structure/params?
+        # self.optimizer = optim.Adam(...)
+        # We can just clear `state` dictionary of optimizer.
+        # But we must ensure it doesn't break.
+        agent.optimizer.state.clear()
+        print("   Optimizer state cleared.")
+
+    def _perform_pruning_step(self, model: nn.Module, context: PruningContext) -> float:
+        # print(f"✂️ RandomLottery: Pruning (Round {self.current_round} -> {self.current_round + 1})...")
+        
+        # Calculate amount to prune
+        current_sparsity = calculate_sparsity(model)
+        amount = self.config.pruning_rate
+        
+        # Check if this is the final round
+        if self.current_round == self.total_rounds:
+            if current_sparsity < self.config.final_sparsity:
+                numerator = self.config.final_sparsity - current_sparsity
+                denominator = 1.0 - current_sparsity
+                if denominator > 0:
+                    amount = numerator / denominator
+                else:
+                    amount = 0.0
+            else:
+                amount = 0.0
+
+        # Safety clamp
+        amount = max(0.0, min(1.0, amount))
+
+        parameters_to_prune = get_prunable_modules(model)
+        
+        # USE RANDOM UNSTRUCTURED PRUNING
+        prune.global_unstructured(
+            parameters_to_prune,
+            pruning_method=prune.RandomUnstructured,
+            amount=amount,
+        )
+        
+        new_sparsity = calculate_sparsity(model)
+
+        # 2. Rewind (Reinitialize)
+        self._rewind_network(context.agent)
+
+        context.agent.update_target_network()
+        
+        # 3. Update State
+        self.current_round += 1
+        self.last_pruning_step = context.step
+        
+        # 4. Perform Resets
+        if getattr(context, 'trainer', None) is not None:
+            trainer = context.trainer
+            
+            # Reset Buffer
+            trainer.ctx.buffer.reset()
+            
+            # Reset Epsilon Schedule
+            if hasattr(trainer.ctx.epsilon_scheduler, 'reset'):
+                 trainer.ctx.epsilon_scheduler.reset(step=context.step)
+            
+            # Reset Learning Starts
+            if self.original_learning_starts is not None:
+                new_learning_starts = context.step + self.original_learning_starts
+                trainer.cfg.learning_starts = new_learning_starts
+        
+        self._log_artifacts(context, self.current_round)
+
+        return new_sparsity
