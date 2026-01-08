@@ -94,16 +94,14 @@ class ReplayBuffer:
             self.pos = 0
 
     def _get_samples(self, batch_inds: np.ndarray, env_inds: np.ndarray) -> tuple[torch.Tensor, torch.Tensor]:
-        obs = self.observations[batch_inds, env_inds]
-        next_obs = self.next_observations[batch_inds, env_inds]
-        obs = np.asarray(obs)
-        next_obs = np.asarray(next_obs)
-
-        tensor_obs = torch.from_numpy(obs).to(self.device)
-        tensor_next_obs = torch.from_numpy(next_obs).to(self.device)
-
         if not self.optimize_memory_usage:
-            return tensor_obs, tensor_next_obs
+            obs = self.observations[batch_inds, env_inds]
+            next_obs = self.next_observations[batch_inds, env_inds]
+            
+            return (
+                torch.as_tensor(obs, device=self.device), 
+                torch.as_tensor(next_obs, device=self.device)
+            )
             
         # Optimized sampling
         # We need to reconstruct the stack for each batch index

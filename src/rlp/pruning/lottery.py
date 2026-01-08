@@ -20,7 +20,7 @@ class LotteryConfig:
     first_iteration_steps: int
     rewind_to_step: int = 0
     pruning_rate: float = 0.1 # 10% per iteration
-    iqm_window_size: int = 100
+    iqm_window_size: int = 1000
     description: str = "Lottery Ticket Hypothesis Experiment"
 
 
