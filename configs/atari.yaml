@@ -29,7 +29,7 @@ algorithm:
 
 wandb:
   enabled: true
-  project: "rlp-25"
+  project: "atari-lottery"
   group: "atari"
   entity: null
   tags: ["atari", "ddqn"]
