@@ -1,0 +1,11 @@
+name: "atari_ddqn_gmp_sweep"
+
+base_config: "atari-gmp"
+
+params:
+  seed: [1, 2, 3, 4, 5]
+  env_id: 
+    - "ALE/Breakout-v5"
+    - "ALE/Pong-v5"
+    - "ALE/SpaceInvaders-v5"
+  sparsity: [0.60, 0.75, 0.9]
