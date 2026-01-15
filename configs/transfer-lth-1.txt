@@ -1,0 +1,9 @@
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S60-s1 -> ticket-round-10:v14
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S60-s2-2 -> ticket-round-2:v23
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S60-s3-2 -> ticket-round-3:v23
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S60-s4-2 -> ticket-round-2:v37
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S60-s5-2 -> ticket-round-2:v38
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S75-s1-2 -> ticket-round-7:v24
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S75-s3-2 -> ticket-round-8:v22
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S75-s4-2 -> ticket-round-7:v28
+atari_ddqn_lth_sweep-SpaceInvaders-v5-S75-s5-2 -> ticket-round-8:v25
