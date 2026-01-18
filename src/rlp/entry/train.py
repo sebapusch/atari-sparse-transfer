@@ -75,6 +75,7 @@ def load_resume_config(cfg: DictConfig) -> DictConfig:
 def build_trainer(config: DictConfig) -> tuple[Trainer, dict | None]:
     builder = Builder(config)
     
+    logger = builder.build_logger()
     checkpointer = builder.build_checkpointer()
 
     start_step = 0
@@ -87,8 +88,6 @@ def build_trainer(config: DictConfig) -> tuple[Trainer, dict | None]:
             print(f"State loaded. Resuming from step {start_step}")
         else:
              print("Resume requested but no checkpoint found. Starting from scratch.")
-
-    logger = builder.build_logger()
 
     # Sync with WandB step to avoid "history overwrite" errors
     # If the checkpoint is older than the last logged step in WandB, we must fast-forward.
