@@ -14,6 +14,7 @@ pruning:
   
 wandb:
   tags: ["atari", "ddqn", "gmp"]
+  project: "atari-gmp-2"
 
 optimizer:
   type: adam
