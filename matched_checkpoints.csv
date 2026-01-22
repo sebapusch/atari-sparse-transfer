@@ -1,0 +1,48 @@
+run_name,run_end_time,match_status,checkpoint_path,time_diff_seconds,env_id,seed
+atari_ddqn_gmp_sweep-Breakout-v5-S60-s1,2026-01-14T13:41:05.000Z,Match,/scratch/s5488079/models/1768368987/checkpoint_10000001.pt,2,ALE/Breakout-v5,1
+atari_ddqn_gmp_sweep-Breakout-v5-S75-s1,2026-01-14T15:22:05.000Z,Match,/scratch/s5488079/models/1768373518/checkpoint_10000001.pt,3,ALE/Breakout-v5,1
+atari_ddqn_gmp_sweep-Breakout-v5-S90-s1,2026-01-14T16:32:23.000Z,Match,/scratch/s5488079/models/1768379045/checkpoint_10000001.pt,3,ALE/Breakout-v5,1
+atari_ddqn_gmp_sweep-Pong-v5-S60-s1,2026-01-14T18:15:36.000Z,Match,/scratch/s5488079/models/1768385731/checkpoint_10000001.pt,1,ALE/Pong-v5,1
+atari_ddqn_gmp_sweep-Pong-v5-S75-s1,2026-01-14T20:44:10.000Z,Match,/scratch/s5488079/models/1768394748/checkpoint_10000001.pt,3,ALE/Pong-v5,1
+atari_ddqn_gmp_sweep-Pong-v5-S90-s1,2026-01-14T21:44:37.000Z,Match,/scratch/s5488079/models/1768398701/checkpoint_10000001.pt,11,ALE/Pong-v5,1
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S75-s1,2026-01-15T00:44:56.000Z,No Match,,,ALE/SpaceInvaders-v5,1
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S90-s1,2026-01-15T00:30:22.000Z,No Match,,,ALE/SpaceInvaders-v5,1
+atari_ddqn_gmp_sweep-Breakout-v5-S60-s2,2026-01-15T00:51:10.000Z,Weak Match (779s diff),/scratch/s5488079/models/1768408850/checkpoint_10000001.pt,779,ALE/Breakout-v5,2
+atari_ddqn_gmp_sweep-Breakout-v5-S75-s2,2026-01-15T01:04:10.000Z,Match,/scratch/s5488079/models/1768408850/checkpoint_10000001.pt,1,ALE/Breakout-v5,2
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S60-s2,2026-01-15T00:31:11.000Z,No Match,,,ALE/SpaceInvaders-v5,2
+atari_ddqn_gmp_sweep-Pong-v5-S60-s2,2026-01-15T00:29:47.000Z,Weak Match (1438s diff),/scratch/s5488079/models/1768409207/checkpoint_10000001.pt,1438,ALE/Pong-v5,2
+atari_ddqn_gmp_sweep-Breakout-v5-S90-s2,2026-01-15T00:56:55.000Z,Match,/scratch/s5488079/models/1768408850/checkpoint_10000001.pt,434,ALE/Breakout-v5,2
+atari_ddqn_gmp_sweep-Pong-v5-S75-s2,2026-01-15T00:30:59.000Z,Weak Match (1366s diff),/scratch/s5488079/models/1768409207/checkpoint_10000001.pt,1366,ALE/Pong-v5,2
+atari_ddqn_gmp_sweep-Pong-v5-S90-s2,2026-01-15T00:45:42.000Z,Match,/scratch/s5488079/models/1768409207/checkpoint_10000001.pt,483,ALE/Pong-v5,2
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S60-s1,2026-01-15T00:32:38.000Z,No Match,,,ALE/SpaceInvaders-v5,1
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S75-s2,2026-01-15T00:48:18.000Z,No Match,,,ALE/SpaceInvaders-v5,2
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S90-s2,2026-01-15T00:53:47.000Z,No Match,,,ALE/SpaceInvaders-v5,2
+atari_ddqn_gmp_sweep-Breakout-v5-S60-s3,2026-01-15T00:50:00.000Z,Match,/scratch/s5488079/models/1768409327/checkpoint_10000001.pt,1,ALE/Breakout-v5,3
+atari_ddqn_gmp_sweep-Breakout-v5-S75-s3,2026-01-15T00:50:55.000Z,Match,/scratch/s5488079/models/1768409326/checkpoint_10000001.pt,1,ALE/Breakout-v5,3
+atari_ddqn_gmp_sweep-Breakout-v5-S90-s3,2026-01-15T00:54:23.000Z,Match,/scratch/s5488079/models/1768409571/checkpoint_10000001.pt,2,ALE/Breakout-v5,3
+atari_ddqn_gmp_sweep-Pong-v5-S60-s3,2026-01-15T01:29:07.000Z,Match,/scratch/s5488079/models/1768412350/checkpoint_10000001.pt,0,ALE/Pong-v5,3
+atari_ddqn_gmp_sweep-Pong-v5-S75-s3,2026-01-15T01:46:43.000Z,Match,/scratch/s5488079/models/1768413436/checkpoint_10000001.pt,1,ALE/Pong-v5,3
+atari_ddqn_gmp_sweep-Pong-v5-S90-s3,2026-01-15T02:13:29.000Z,Match,/scratch/s5488079/models/1768414536/checkpoint_10000001.pt,1,ALE/Pong-v5,3
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S60-s3,2026-01-15T02:12:41.000Z,No Match,,,ALE/SpaceInvaders-v5,3
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S75-s3,2026-01-15T02:14:31.000Z,No Match,,,ALE/SpaceInvaders-v5,3
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S90-s3,2026-01-15T02:38:54.000Z,No Match,,,ALE/SpaceInvaders-v5,3
+atari_ddqn_gmp_sweep-Breakout-v5-S60-s4,2026-01-15T04:56:25.000Z,Match,/scratch/s5488079/models/1768423609/checkpoint_10000001.pt,1,ALE/Breakout-v5,4
+atari_ddqn_gmp_sweep-Breakout-v5-S75-s4,2026-01-15T06:11:10.000Z,Match,/scratch/s5488079/models/1768427958/checkpoint_10000001.pt,1,ALE/Breakout-v5,4
+atari_ddqn_gmp_sweep-Breakout-v5-S90-s4,2026-01-15T06:28:01.000Z,Match,/scratch/s5488079/models/1768429399/checkpoint_10000001.pt,0,ALE/Breakout-v5,4
+atari_ddqn_gmp_sweep-Pong-v5-S60-s4,2026-01-15T08:23:16.000Z,Match,/scratch/s5488079/models/1768437117/checkpoint_10000001.pt,1,ALE/Pong-v5,4
+atari_ddqn_gmp_sweep-Pong-v5-S75-s4,2026-01-15T08:25:48.000Z,Match,/scratch/s5488079/models/1768437230/checkpoint_10000001.pt,1,ALE/Pong-v5,4
+atari_ddqn_gmp_sweep-Pong-v5-S90-s4,2026-01-15T08:50:48.000Z,Match,/scratch/s5488079/models/1768437957/checkpoint_10000001.pt,0,ALE/Pong-v5,4
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S60-s4,2026-01-15T08:47:06.000Z,No Match,,,ALE/SpaceInvaders-v5,4
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S75-s4,2026-01-15T08:59:35.000Z,No Match,,,ALE/SpaceInvaders-v5,4
+atari_ddqn_gmp_sweep-Breakout-v5-S75-s5,2026-01-15T08:56:03.000Z,Match,/scratch/s5488079/models/1768438331/checkpoint_10000001.pt,1,ALE/Breakout-v5,5
+atari_ddqn_gmp_sweep-Breakout-v5-S60-s5,2026-01-15T08:56:05.000Z,Match,/scratch/s5488079/models/1768438331/checkpoint_10000001.pt,1,ALE/Breakout-v5,5
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S90-s4,2026-01-15T08:42:49.000Z,No Match,,,ALE/SpaceInvaders-v5,4
+atari_ddqn_gmp_sweep-Breakout-v5-S90-s5,2026-01-15T09:14:01.000Z,Match,/scratch/s5488079/models/1768438456/checkpoint_10000001.pt,1,ALE/Breakout-v5,5
+atari_ddqn_gmp_sweep-Pong-v5-S60-s5,2026-01-15T08:44:16.000Z,Match,/scratch/s5488079/models/1768438577/checkpoint_10000001.pt,1,ALE/Pong-v5,5
+atari_ddqn_gmp_sweep-Pong-v5-S75-s5,2026-01-15T08:49:47.000Z,Match,/scratch/s5488079/models/1768438700/checkpoint_10000001.pt,1,ALE/Pong-v5,5
+atari_ddqn_gmp_sweep-Pong-v5-S90-s5,2026-01-15T09:06:36.000Z,Match,/scratch/s5488079/models/1768439184/checkpoint_10000001.pt,1,ALE/Pong-v5,5
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S60-s5,2026-01-15T09:19:56.000Z,No Match,,,ALE/SpaceInvaders-v5,5
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S75-s5,2026-01-15T09:34:03.000Z,No Match,,,ALE/SpaceInvaders-v5,5
+atari_ddqn_gmp_sweep-SpaceInvaders-v5-S90-s5,2026-01-15T10:12:40.000Z,No Match,,,ALE/SpaceInvaders-v5,5
+atari_ddqn_lth-rand_sweep-Pong-v5-S95-s3-2-3,2026-01-17T17:18:04.000Z,No Match,,,ALE/Pong-v5,3
+atari_ddqn_lth-rand_sweep-SpaceInvaders-v5-S95-s1-2-3,2026-01-17T17:18:07.000Z,No Match,,,ALE/SpaceInvaders-v5,1
