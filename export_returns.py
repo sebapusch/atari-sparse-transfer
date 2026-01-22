@@ -196,7 +196,7 @@ def main():
     parser.add_argument("--entity", default="sebapusch-university-of-groningen", help="W&B Entity")
     parser.add_argument("--metric", default="charts/episodic_return", help="Metric to export")
     parser.add_argument("--bin_size", type=int, default=1000, help="Step aggregation bin size")
-    parser.add_argument("--max_step", type=int, default=10_000_000, help="Maximum step to process")
+    parser.add_argument("--max_step", type=int, default=1000_000_000, help="Maximum step to process")
     parser.add_argument("--dry-run", action="store_true", help="Validate parsing without downloading")
     
     args = parser.parse_args()

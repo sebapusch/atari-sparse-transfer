@@ -100,7 +100,7 @@ def fetch_run_history(run, max_step=100_000_000):
         print(f"Error fetching {run.name}: {e}")
         return pd.DataFrame()
 
-def detect_spike_steps(eps_series, step_series, eps_high=0.9, min_gap_steps=200_000):
+def detect_spike_steps(eps_series, step_series, eps_high=0.9, min_gap_steps=500_000):
     # Same logic as export_lth
     # For Random baseline, do we have epsilon spikes?
     # Yes, "random_lth" implies it does pruning rounds too?
@@ -146,18 +146,49 @@ def process_group(api, key, run_names, window=1000):
         df = fetch_run_history(run)
         if df.empty: continue
         
-        # Offset logic
+        if df.empty: continue
+        
+        if df.empty: continue
+        
+        # Logic for stitching:
+        # If this is NOT the last run, it's considered "failed" or "superseded".
+        # User Rule 1: "discard the data after the last pruning of a failed run."
+        # User Rule 2: "a 'continue' pruning iteration starts where the previous one left off."
+        
+        is_last_run = (i == len(sorted_names) - 1)
+        
+        if not is_last_run:
+             # Find spikes in this run
+             spikes = detect_spike_steps(df[EPSILON_KEY].fillna(0), df[STEP_KEY])
+             
+             if len(spikes) > 0:
+                 last_spike = spikes[-1]
+                 print(f"    Run {r_name} is partial. Truncating at last spike {last_spike} (discarding incomplete iter).")
+                 # Truncate strictly BEFORE the last spike (start of next iter)
+                 # So we keep Iterations 0..N-1. Iteration N (started by last_spike) is discarded.
+                 df = df[df[STEP_KEY] < last_spike]
+             else:
+                 print(f"    Run {r_name} has no valid iterations (no spikes). Discarding entirely.")
+                 df = pd.DataFrame()
+        
+        if df.empty: continue
+
+        # Strict Offset Logic
         offset = 0
-        curr_min = df[STEP_KEY].min()
-        if i > 0 and curr_min < last_max_step:
+        if not full_df.empty:
+            last_max_step = full_df[STEP_KEY].max()
+            # New run starts at Step 0 (usually). Map 0 -> LastMaxStep + 1?
+            # Or just LastMaxStep.
+            # "Continue starts where previous left off".
             offset = last_max_step
-            print(f"    Offsetting by {offset}")
             
-        if offset > 0:
-            df[STEP_KEY] += offset
-            
+            if offset > 0:
+                 print(f"    Offsetting {r_name} by {offset:.1f}")
+                 df[STEP_KEY] += offset
+        
         full_df = pd.concat([full_df, df])
-        last_max_step = df[STEP_KEY].max()
+            
+        last_max_step = full_df[STEP_KEY].max()
         
     if full_df.empty: return []
     

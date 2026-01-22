@@ -79,8 +79,12 @@ def main():
         'lines.markersize': 4
     })
 
-    # Load Baseline Data (Disabled)
-    df_base = pd.DataFrame()
+    # Load Baseline Data
+    baseline_csv = "results_baselines.csv"
+    if os.path.exists(baseline_csv):
+        df_base = pd.read_csv(baseline_csv)
+    else:
+        df_base = pd.DataFrame()
 
     # Sparsity Schedules (provided by user)
     sparsity_schedules = {
@@ -134,8 +138,6 @@ def main():
                     yerr_low = 0
                     yerr_high = 0
                 
-                # Manual Overrides Removed (Raw Data)
-                
                 # Map iteration to Sparsity
                 if it < len(current_schedule):
                     sparsity_val_label = current_schedule[it]
@@ -165,12 +167,44 @@ def main():
                     markersize=3, 
                     color=cfg["color"]
                 )
-                eb[-1][0].set_alpha(0.3) 
+                # eb[-1][0].set_alpha(0.3) 
 
-            # --- Baseline Data (Disabled) ---
-            # No Random Line
+            # --- Baseline Data ---
+            b_x = []
+            b_y = []
             
-            # X-Axis Layout
+            if not df_base.empty:
+                # Filter for this env (loose match on env name)
+                base_mask = df_base['env'].apply(lambda e: env_key in e)
+                base_sub = df_base[base_mask]
+                
+                if not base_sub.empty:
+                    # Aggregate by iteration (mean across all seeds in CSV)
+                    # "If the exact sparsity level does not match exactly you should still aggregate per pruning iterations"
+                    # We group by 'iteration' which is the pruning round index.
+                    base_agg = base_sub.groupby('iteration')['avg_return'].mean().sort_index()
+                    
+                    for it, val in base_agg.items():
+                        # Calculate implied sparsity for cutoff check
+                        # Random baseline follows same schedule index? 
+                        # Assuming index alignment is correct per User instruction.
+                        
+                        s_val = 1.0 - (0.9 ** it)
+                        if it < len(current_schedule):
+                             s_val = current_schedule[it] 
+
+                        # Cutoff at target sparsity
+                        if s_val > max_sparsity_val + 0.01:
+                            continue
+                            
+                        # No artificial decay logic unless requested. 
+                        # "ensure how you aggregate is correct" implies using data as-is.
+                        
+                        b_x.append(it)
+                        b_y.append(val)
+            
+            if b_x:
+                plt.plot(b_x, b_y, label="Random", linestyle='--', color='grey', linewidth=1.5)
             plt.xlabel("Sparsity")
             plt.ylabel("IQM episodic return")
             

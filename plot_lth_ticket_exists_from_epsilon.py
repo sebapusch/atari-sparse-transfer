@@ -8,7 +8,7 @@ python3 plot_lth_ticket_exists_from_epsilon.py \
   --epsilon_csv data_epsilon/breakout_S60_s3.csv \
   --eps_high 0.9 \
   --min_gap_steps 1000000 \
-  --last_frac 0.1 \
+  --last_frac 0.001 \
   --frac_mode points
 """
 
@@ -154,7 +154,7 @@ def main():
     ap.add_argument("--min_gap_steps", type=float, default=500_000)
 
     # NEW: fraction-based tail averaging (ticket existence)
-    ap.add_argument("--last_frac", type=float, default=0.1,
+    ap.add_argument("--last_frac", type=float, default=0.001,
                     help="Fraction of each iteration to average over at the end (e.g., 0.1 = last 10%).")
     ap.add_argument("--frac_mode", choices=["points", "steps"], default="points",
                     help="How to define the last fraction: by logged points (recommended) or by env-step span.")
