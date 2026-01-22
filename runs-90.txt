@@ -1,4 +1,0 @@
-minatar_ddqn_lth_sweep-space_invaders-S75-s3 -> ticket-round-14:v5
-minatar_ddqn_lth_sweep-breakout-S75-s3 -> ticket-round-14:v6
-minatar_ddqn_lth_sweep-seaquest-S75-s2 -> ticket-round-2:v28
-minatar_ddqn_lth_sweep-space_invaders-S75-s1 -> ticket-round-14:v1
