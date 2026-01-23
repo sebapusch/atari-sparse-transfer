@@ -60,15 +60,22 @@ def main():
     # Style
     sns.set_context("paper")
     plt.rcParams.update({
-        'font.size': 12,
-        'axes.linewidth': 1.5,
-        'lines.linewidth': 1.0, # Thinner line
-        'lines.markersize': 4
+        'font.size': 20,           # Even bigger
+        'axes.labelsize': 22,
+        'axes.titlesize': 24, # (Unused if title removed, but consistency)
+        'xtick.labelsize': 18,
+        'ytick.labelsize': 18,
+        'axes.linewidth': 2.0,
+        'lines.linewidth': 2.0,    # Slightly thicker
+        'lines.markersize': 8,     # Bigger markers
+        'legend.fontsize': 20
     })
 
     sparsity_schedules = {
         75: [0, 0.1, 0.19, 0.271, 0.34, 0.41, 0.47, 0.52, 0.57, 0.61, 0.65, 0.69, 0.72, 0.74, 0.75]
     }
+
+    combined_data = {}
 
     for sparsity in sparsities:
         current_schedule = sparsity_schedules.get(sparsity, [])
@@ -76,6 +83,8 @@ def main():
         
         for env_key, cfg in env_configs.items():
             print(f"Generating Seed-Bootstrap plot for {env_key} S{sparsity}%...")
+            
+            # ... (Data Processing remains same) ...
             
             # --- Main Data ---
             run_seeds = cfg["seeds"]
@@ -115,14 +124,6 @@ def main():
 
             # --- Manual Overrides (User Request) ---
             if env_key == "Breakout":
-                # Increase iteration at sparsity 0.57, 0.61, 0.65 to +45
-                # Schedule indices: 
-                # 0.57 -> idx 8
-                # 0.61 -> idx 9
-                # 0.65 -> idx 10
-                # We need to map Iteration -> Index in plot_x? 
-                # plot_x contains "it" (iteration index). 
-                # We can check if `it` is 8, 9, 10.
                 targets = [8, 9, 10]
                 for i, it in enumerate(plot_x):
                     if it in targets:
@@ -130,15 +131,11 @@ def main():
                         plot_y[i] += 45.0
             
             if env_key == "SpaceInvaders":
-                # Set iteration 0.57 +500 and final iteration +250
-                # 0.57 -> idx 8
                 targets = [8]
                 for i, it in enumerate(plot_x):
                     if it in targets:
                         print(f"  Adjusting SpaceInvaders Iter {it} (sp {current_schedule[it]}) by +500")
                         plot_y[i] += 500.0
-                    
-                    # Final iteration
                     if i == len(plot_x) - 1:
                          print(f"  Adjusting SpaceInvaders Final Iter {it} by +250")
                          plot_y[i] += 250.0
@@ -146,7 +143,7 @@ def main():
             if not plot_x:
                 continue
                 
-            plt.figure(figsize=(7, 5), dpi=300)
+            plt.figure(figsize=(8, 6), dpi=300) # Slightly bigger figure needed for big fonts?
             
             plt.errorbar(
                 plot_x,
@@ -154,10 +151,10 @@ def main():
                 yerr=[plot_yerr_low, plot_yerr_high],
                 label=cfg["label"],
                 fmt='-o',
-                capsize=0, # No horizontal bars
-                elinewidth=1.0, 
-                linewidth=1.0, # Thinner
-                markersize=4,
+                capsize=0, 
+                elinewidth=1.5, # Matching linewidth
+                linewidth=1.5, 
+                markersize=6,
                 color=cfg["color"]
             )
             
@@ -170,14 +167,12 @@ def main():
                 base_sub = df_base[base_mask]
                 
                 if not base_sub.empty:
-                    # Aggregate per iteration: Mean over seeds
                     base_agg = base_sub.groupby('iteration')['avg_return'].mean().sort_index()
                     
                     cleaned_x = []
                     cleaned_y = []
                     
                     for it, val in base_agg.items():
-                        # Cutoff based on sparsity schedule
                         s_val = 1.0 - (0.9 ** it)
                         if it < len(current_schedule):
                              s_val = current_schedule[it] 
@@ -185,7 +180,6 @@ def main():
                         if s_val > max_sparsity_val + 0.01:
                             continue
                         
-                        # Filter bad artifacts for SpaceInvaders
                         if env_key == "SpaceInvaders" and val < 300 and cleaned_y and np.mean(cleaned_y) > 400:
                              continue
                              
@@ -195,29 +189,36 @@ def main():
                     b_x = cleaned_x
                     b_y = cleaned_y
                     
-                    # Manual Override: Breakout Baseline Padding
                     if env_key == "Breakout" and b_x:
                         last_it = b_x[-1]
                         max_main_it = max(plot_x) if plot_x else 0
                         if last_it < max_main_it:
-                            # Pad with 0s
                             for pad_it in range(int(last_it)+1, max_main_it+1):
                                 b_x.append(pad_it)
                                 b_y.append(0.0)
-                                print(f"  Padding Breakout Baseline Iter {pad_it} with 0")
             
             if b_x:
-                plt.plot(b_x, b_y, label="Random", linestyle='--', color='grey', linewidth=1.0)
+                plt.plot(b_x, b_y, label="Random", linestyle='--', color='grey', linewidth=2.0)
             
             plt.xlabel("Sparsity")
-            plt.ylabel("IQM episodic return") # User requested IQM name
-            plt.title(f"Winning Tickets ALE/{env_key}-v5 (Sparsity {sparsity}%)")
+            plt.ylabel("IQM")
+            # plt.title(f"{env_key}") # Removed per request
             
             plt.xticks(plot_x, plot_ticks, rotation=45)
+            # Hide some ticks if crowded
+            if len(plot_x) > 10:
+                 ax = plt.gca()
+                 for label in ax.get_xticklabels()[1::2]:
+                     label.set_visible(False)
+
             plt.xlim(-0.5, max(plot_x) + 0.5)
             
-            plt.grid(False) # Remove grid
-            plt.legend()
+            plt.grid(False)
+            
+            # Legend on top: horizontal
+            # bbox_to_anchor=(x, y). y > 1 puts it above.
+            plt.legend(bbox_to_anchor=(0.5, 1.02), loc='lower center', borderaxespad=0., ncol=2, frameon=False)
+            
             plt.tight_layout()
             
             out_name = f"winning_tickets_{env_key}_S{sparsity}{args.filename_suffix}.png"
@@ -225,6 +226,10 @@ def main():
             plt.savefig(out_path, dpi=300)
             plt.close()
             print(f"Saved {out_path}")
+            
+            # combined_data[env_key] = ... # logic disabled per request
+
+        # Combined Plot Block Disabled "Don't generate a PDF"
 
 if __name__ == "__main__":
     main()
