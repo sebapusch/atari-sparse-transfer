@@ -132,6 +132,19 @@ def iqm_trimmed_mean(values: np.ndarray) -> float:
     return float(np.mean(mid)) if len(mid) else float(np.mean(v))
 
 
+# Atari Normalization Constants (DQN Paper / Human Normalized Scores)
+# Score = (Agent - Random) / (Human - Random) * 100
+ATARI_SCORES = {
+    # formatting: "env_slug": (random, human)
+    "breakout": (1.7, 31.8),
+    "pong": (-20.7, 9.3),
+    "space_invaders": (148.0, 1652.0), # using underscore to match file key
+    "space-invaders": (148.0, 1652.0), # fallback
+    "SpaceInvaders-v5": (148.0, 1652.0),
+    "Pong-v5": (-20.7, 9.3),
+    "Breakout-v5": (1.7, 31.8),
+}
+
 def load_and_preprocess(file_path: str, max_step=MAX_STEP) -> pd.DataFrame:
     if not os.path.exists(file_path):
         print(f"Warning: File not found: {file_path}")
@@ -148,6 +161,23 @@ def load_and_preprocess(file_path: str, max_step=MAX_STEP) -> pd.DataFrame:
     # Limit steps
     df = df[df["step"] <= max_step].copy()
     
+    # Normalize Returns if applicable
+    # We need to identifying the env from the file path or content.
+    # The file paths in FILES dict are like "returns_pong.csv".
+    filename = os.path.basename(file_path).lower()
+    
+    env_key = None
+    if "pong" in filename: env_key = "pong"
+    elif "breakout" in filename: env_key = "breakout"
+    elif "space-invaders" in filename or "space_invaders" in filename: env_key = "space_invaders"
+    
+    if env_key and env_key in ATARI_SCORES:
+        rnd, hum = ATARI_SCORES[env_key]
+        # Normalize: (x - rnd) / (hum - rnd) * 100
+        df["episodic_return"] = (df["episodic_return"] - rnd) / (hum - rnd) * 100.0
+    else:
+        print(f"Warning: Could not determine normalization for {filename}")
+
     # Binning
     # Center bins: 0..50k -> 25k? Or just 0, 50k, 100k...
     # Existing compare_runs does: (step // BIN) * BIN. Let's stick with that for consistency.
