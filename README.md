@@ -1,115 +1,33 @@
-# RLP-25: Deep Reinforcement Learning Scaffolding
+# Transferability of Sparse Subnetworks in Reinforcement Learning
 
-RLP-25 is a modular and decoupled scaffolding for Deep Reinforcement Learning (DRL) research, designed for flexibility and ease of use. It supports various algorithms (DQN, DDQN), environments (Atari, MinAtar), and advanced features like network pruning, with first-class integration for [Weights & Biases](https://wandb.ai/).
+This repository contains the code and resources for the research project "Transferability of Sparse Subnetworks in Value-Based Deep Reinforcement Learning".
 
-## 🚀 Getting Started
+> [!NOTE]
+> For a full detailed analysis and results, please refer to the **[Project Report](./report.pdf)**.
 
-### Installation
+## Overview
 
-**Prerequisites**: Python 3.12+
+Sparse subnetworks such as lottery tickets can match or outperform dense performance in supervised learning, but it remains unclear whether such sparsified representations transfer across reinforcement learning (RL) tasks. We study the transferability of pruned subnetworks in value-based deep reinforcement learning by training Double Deep Q-Network (DDQN) agents on Atari environments and transferring sparse encoders between tasks.
 
-Recommended installation via [uv](https://github.com/astral-sh/uv):
+We compare subnetworks obtained via **Lottery Ticket Hypothesis (LTH)** pruning and **Gradual Magnitude Pruning (GMP)**, and evaluate two target task adaptation regimes:
+1.  **Static transfer**: No further pruning.
+2.  **Continued magnitude pruning**: Pruning during target training to restore plasticity.
 
-```bash
-uv sync
-```
+Across Pong, Breakout, and Space Invaders, we find that while winning tickets can exist within individual tasks, transferring sparse subnetworks across games yields limited or negative transfer relative to training from scratch, and reintroducing pruning during target task training further degrades performance compared to Static transfer. These results suggest that magnitude-based sparsity alone does not mitigate the representation-value misalignment that arises during cross-task transfer in DDQN, and that effective RL transfer requires mechanisms that preserve or re-establish encoder-head co-adaptation rather than solely relying on sparsity.
 
-Or via pip:
+## Project Structure
 
-```bash
-pip install -e .
-```
+The repository is organized as follows:
 
-### Quick Start
-
-Run a default training session (DQN on BreakoutNoFrameskip-v4):
-
-```bash
-python src/rlp/entry/train.py
-```
-
----
-
-## ⚙️ Configuration Guide
-
-This project uses [Hydra](https://hydra.cc/) for configuration management. All configurations are located in the `configs/` directory. You can override any parameter from the command line.
-
-### Key Configuration Parameters
-
-| Parameter | Default | Description |
-| :--- | :--- | :--- |
-| **Global** | | |
-| `seed` | `1` | Random seed for reproducibility. |
-| `device` | `"cuda"` | Computation device (`"cuda"` or `"cpu"`). |
-| `output_dir` | (hydra) | Directory for logs and checkpoints. |
-| **WandB** | | |
-| `wandb.enabled` | `false` | Enable Weights & Biases logging. |
-| `wandb.project` | `"rlp-sparse"` | W&B project name. |
-| `wandb.entity` | `null` | W&B username or team. |
-| `wandb.group` | `null` | Group name for organizing runs (Mandatory if enabled). |
-| `wandb.id` | `null` | **Unique Run ID** (used for resuming). |
-| **Training** | | |
-| `train.total_timesteps` | `10M` | Total interaction steps. |
-| `train.checkpoint_interval`| `100k` | Frequency of saving model checkpoints. |
-| `train.save_model` | `false` | Save final model. |
-
-### 🔄 Resuming Runs
-
-To resume a training run, you must provide the **WandB Run ID**. This ensures that the logger attaches to the existing run and the checkpointer loads the correct state.
-
-```bash
-python src/rlp/entry/train.py wandb.enabled=true wandb.id=YOUR_RUN_ID
-```
-
-The system will:
-1.  Initialize WandB with `resume="allow"` and the specified `id`.
-2.  Look for checkpoints in the directory associated with that `id`.
-3.  Resume training from the last saved step.
-
----
-
-## 💡 Usage Examples
-
-### 1. Basic Training (Atari)
-Train a DQN agent on Pong. Note: Always use `NoFrameskip-v4` environments.
-
-```bash
-python src/rlp/entry/train.py algorithm=dqn env.id=PongNoFrameskip-v4
-```
-
-### 2. MinAtar Environments
-Use the `minatar` config group and specify a MinAtar environment ID.
-
-```bash
-python src/rlp/entry/train.py --config-name=minatar env.id="MinAtar/breakout"
-```
-
-### 3. Training with Weights & Biases
-Enable logging and specify a group for organization.
-
-```bash
-python src/rlp/entry/train.py \
-    wandb.enabled=true \
-    wandb.project=my-rl-project \
-    wandb.group=experiment-v1 \
-    wandb.name=dqn-breakout-run1
-```
-
-### 4. Resuming an Interrupted Run
-If a run with ID `3xample1d` crashed or was stopped, resume it exactly where it left off:
-
-```bash
-python src/rlp/entry/train.py \
-    wandb.enabled=true \
-    wandb.id=3xample1d
-```
-
-### 5. Running with Custom Hyperparameters
-Override specific parameters directly:
-
-```bash
-python src/rlp/entry/train.py \
-    algorithm.learning_starts=1000 \
-    algorithm.batch_size=64 \
-    train.total_timesteps=500000
-```
+- **`src/rlp`**: Core Python package containing the implementation of DDQN agents, pruning algorithms, and training loops.
+    - `pruning/`: Implementations of LTH and GMP pruning strategies.
+    - `agent/`: DDQN agent architecture and logic.
+    - `env/`: Atari environment wrappers and factories.
+    - `core/`: Training infra, including the Trainer and persistent state management.
+- **`scripts/`**: Utilities for data analysis and plotting.
+    - `generate_area_ratio/`: Scripts to calculate transfer performance metrics (IQM area ratios).
+    - `plot_winning_tickets/`: Plotting scripts for visualizing LTH and transfer results.
+    - `compare_runs/`: Tools to compare different experimental runs.
+- **`configs/`**: Configuration files (likely Hydra/OmegaConf) for defining experimental parameters.
+- **`dispatcher/`**: Scripts for orchestrating experiments (e.g., SLURM batch scripts, dispatchers).
+- **`report.pdf`**: The final report document detailing the methodology, experiments, and conclusions.
