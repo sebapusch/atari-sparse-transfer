@@ -328,7 +328,14 @@ def main():
                     base_info = baseline_cfg
                     
                     # Path
-                    f_path = FILES["gmp_transfer"][tgt_key] # Assuming this contains baselines too
+                    # Load from the file set corresponding to the transfer type (gmp or lth)
+                    # This ensures we use the same data source as the transfer runs and the plots.
+                    file_key = f"{transfer_type}_transfer"
+                    if file_key not in FILES:
+                         # Fallback
+                         file_key = "gmp_transfer"
+                         
+                    f_path = FILES[file_key][tgt_key]
                     df_env = load_and_preprocess(f_path)
                     
                     # Get Baseline Curves
