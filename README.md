@@ -1,5 +1,7 @@
 # Transferability of Sparse Subnetworks in Reinforcement Learning
 
+![Transferability Grid](./assets/transfer_grid.png)
+
 This repository contains the code and resources for the research project "Transferability of Sparse Subnetworks in Value-Based Deep Reinforcement Learning".
 
 > [!NOTE]
