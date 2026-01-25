@@ -33,3 +33,39 @@ The repository is organized as follows:
 - **`configs/`**: Configuration files (likely Hydra/OmegaConf) for defining experimental parameters.
 - **`dispatcher/`**: Scripts for orchestrating experiments (e.g., SLURM batch scripts, dispatchers).
 - **`report.pdf`**: The final report document detailing the methodology, experiments, and conclusions.
+
+## Running Experiments
+
+Experiments are configured using [Hydra](https://hydra.cc/). The entry point is `src/rlp/entry/train.py`.
+
+### Setup
+
+Ensure your `PYTHONPATH` includes the `src` directory so that imports work correctly.
+
+```bash
+export PYTHONPATH=src
+```
+
+### Configuration Structure
+
+The project uses a structured configuration system located in `configs/`. You can select a base configuration using `--config-name` and override specific parameters using the dot notation (e.g., `seed=5`) or the `+` syntax for adding new keys (e.g., `+wandb.name=...`).
+
+### Example Command
+
+To run a transfer experiment (e.g., transferring a GMP pruned encoder from SpaceInvaders to Breakout), you can use a command like the following:
+
+```bash
+PYTHONPATH=src python src/rlp/entry/train.py \
+    --config-name atari-gmp \
+    +initial_artifact="sebapusch-university-of-groningen/atari-gmp-2/model-enyr2grw:latest" \
+    +wandb.name="transfer-atari_ddqn_gmp_sweep-SpaceInvaders-v5-S75-s5-Breakout-gmp-0.9" \
+    wandb.project="gmp-transfer" \
+    wandb.group=transfer_ticket_sweep \
+    "wandb.tags=['transfer_ticket_sweep', 'source-ALE/SpaceInvaders-v5', 'dest-ALE/Breakout-v5', 'seed-5', 'gmp-0.9']" \
+    seed=5 \
+    +env.id=ALE/Breakout-v5 \
+    load_encoder_only=True \
+    pruning=gmp \
+    pruning.final_sparsity=0.9 \
+    pruning.initial_sparsity=0.75
+```
