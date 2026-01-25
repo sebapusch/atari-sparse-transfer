@@ -132,24 +132,29 @@ def iqm_trimmed_mean(values: np.ndarray) -> float:
     return float(np.mean(mid)) if len(mid) else float(np.mean(v))
 
 
-# Atari Normalization Constants (DQN Paper / Human Normalized Scores)
-# Score = (Agent - Random) / (Human - Random) * 100
-ATARI_SCORES = {
-    # formatting: "env_slug": (random, human)
-    "breakout": (1.7, 31.8),
-    "pong": (-20.7, 9.3),
-    "space_invaders": (148.0, 1652.0), # using underscore to match file key
-    "space-invaders": (148.0, 1652.0), # fallback
-    "SpaceInvaders-v5": (148.0, 1652.0),
-    "Pong-v5": (-20.7, 9.3),
-    "Breakout-v5": (1.7, 31.8),
+# Atari Min Scores (R_min)
+# Rs_t = R_t - R_min
+MIN_SCORES = {
+    "breakout": 0.0,
+    "pong": -21.0,
+    "space_invaders": 0.0, 
+    "space-invaders": 0.0,
+    "SpaceInvaders-v5": 0.0,
+    "Pong-v5": -21.0,
+    "Breakout-v5": 0.0,
 }
 
+_DATA_CACHE = {}
+
 def load_and_preprocess(file_path: str, max_step=MAX_STEP) -> pd.DataFrame:
+    if file_path in _DATA_CACHE:
+        return _DATA_CACHE[file_path]
+
     if not os.path.exists(file_path):
         print(f"Warning: File not found: {file_path}")
         return pd.DataFrame()
         
+    print(f"Loading {file_path}...", flush=True)
     df = pd.read_csv(file_path, low_memory=False)
     
     # Cleanup
@@ -161,22 +166,22 @@ def load_and_preprocess(file_path: str, max_step=MAX_STEP) -> pd.DataFrame:
     # Limit steps
     df = df[df["step"] <= max_step].copy()
     
-    # Normalize Returns if applicable
-    # We need to identifying the env from the file path or content.
-    # The file paths in FILES dict are like "returns_pong.csv".
+    # Shift Returns
+    # R_s = R - R_min
     filename = os.path.basename(file_path).lower()
     
     env_key = None
     if "pong" in filename: env_key = "pong"
     elif "breakout" in filename: env_key = "breakout"
-    elif "space-invaders" in filename or "space_invaders" in filename: env_key = "space_invaders"
+    elif "space_invaders" in filename or "space-invaders" in filename: env_key = "space_invaders"
     
-    if env_key and env_key in ATARI_SCORES:
-        rnd, hum = ATARI_SCORES[env_key]
-        # Normalize: (x - rnd) / (hum - rnd) * 100
-        df["episodic_return"] = (df["episodic_return"] - rnd) / (hum - rnd) * 100.0
+    if env_key and env_key in MIN_SCORES:
+        r_min = MIN_SCORES[env_key]
+        df["episodic_return"] = df["episodic_return"] - r_min
     else:
-        print(f"Warning: Could not determine normalization for {filename}")
+        # Default to 0 shift if unknown? Or warn?
+        # Assuming 0 is safe for unknown envs as "raw return"
+        pass
 
     # Binning
     # Center bins: 0..50k -> 25k? Or just 0, 50k, 100k...
@@ -188,6 +193,7 @@ def load_and_preprocess(file_path: str, max_step=MAX_STEP) -> pd.DataFrame:
     # 'pruning' col might be 'dense' or 'gmp' or nan. 
     # 'source', 'source_sparsity' for transfer.
     
+    _DATA_CACHE[file_path] = df
     return df
 
 def get_run_curves(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
@@ -258,51 +264,85 @@ def bootstrap_area_ratio(base_curves: pd.DataFrame, transfer_curves: pd.DataFram
     """
     Bootstrap distribution of Area Ratio.
     r = (Area_t - Area_b) / Area_b
+    Fully vectorized for speed.
     """
     base_arr = base_curves.to_numpy() # (bins, n_runs_b)
     trans_arr = transfer_curves.to_numpy() # (bins, n_runs_t)
     
     nb = base_arr.shape[1]
     nt = trans_arr.shape[1]
+    n_bins = base_arr.shape[0]
     
     if nb == 0 or nt == 0:
         return np.nan, np.nan, np.nan, np.nan
-        
-    stats = []
     
     # Pre-compute bin width
     dt = COARSE_BIN
     
-    for _ in range(n_boot):
-        # Resample runs
-        idx_b = rng.integers(0, nb, size=nb)
-        idx_t = rng.integers(0, nt, size=nt)
-        
-        sample_b = base_arr[:, idx_b]
-        sample_t = trans_arr[:, idx_t]
-        
-        # IQM curves
-        iqm_b = np.apply_along_axis(iqm_trimmed_mean, 1, sample_b)
-        iqm_t = np.apply_along_axis(iqm_trimmed_mean, 1, sample_t)
-        
-        area_b = np.sum(iqm_b) * dt
-        area_t = np.sum(iqm_t) * dt
-        
-        if area_b == 0:
-            ratio = np.nan # Avoid div by zero
-        else:
-            ratio = (area_t - area_b) / area_b
-        stats.append(ratio)
-        
-    stats = np.array(stats)
-    stats = stats[~np.isnan(stats)]
+    # Vectorized Bootstrap
+    # Generate indices: (n_boot, n_runs)
+    idx_b = rng.integers(0, nb, size=(n_boot, nb))
+    idx_t = rng.integers(0, nt, size=(n_boot, nt))
     
-    if len(stats) == 0:
+    # Gather data: (bins, n_runs) -> (bins, n_boot, n_runs)
+    # We want (n_boot, bins, n_runs) to sort along last axis? 
+    # Or (bins, n_boot, n_runs).
+    # base_arr[:, idx_b] ?
+    # idx_b is (n_boot, nb).
+    # We want to select columns for each boot.
+    # base_arr[:, idx_b] shape:
+    # broadcasting? base_arr (bins, nb)
+    # This is tricky in numpy for arbitrary indices per "sample".
+    # base_arr[:, idx_b] results in (bins, n_boot, nb). Correct.
+    
+    sample_b = base_arr[:, idx_b] # (bins, n_boot, nb)
+    sample_t = trans_arr[:, idx_t] # (bins, n_boot, nt)
+    
+    # Compute IQM Trimmed Mean along last axis (nb/nt)
+    # 25% trimmed mean
+    
+    def vectorized_iqm(arr):
+        # arr shape: (..., n)
+        # Sort along last axis
+        n = arr.shape[-1]
+        sorted_arr = np.sort(arr, axis=-1)
+        
+        lower = int(np.floor(0.25 * n))
+        upper = n - lower
+        
+        # Slice from lower to upper
+        # Since n is constant, we can slice directly using indices
+        # If lower >= upper (small n), mean of all
+        
+        if lower >= upper:
+             # Just mean
+             return np.mean(sorted_arr, axis=-1)
+             
+        # Slice
+        mid = sorted_arr[..., lower:upper]
+        return np.mean(mid, axis=-1)
+
+    iqm_b = vectorized_iqm(sample_b) # (bins, n_boot)
+    iqm_t = vectorized_iqm(sample_t) # (bins, n_boot)
+    
+    # Sum along bins axis (axis 0) to get Area
+    area_b = np.sum(iqm_b, axis=0) * dt # (n_boot,)
+    area_t = np.sum(iqm_t, axis=0) * dt # (n_boot,)
+    
+    # Compute Ratio
+    with np.errstate(divide='ignore', invalid='ignore'):
+         ratio = (area_t - area_b) / area_b
+         
+    # Handle NaN or Inf if area_b is 0
+    ratio = ratio[~np.isnan(ratio)]
+    ratio = ratio[~np.isinf(ratio)]
+    
+    if len(ratio) == 0:
         return np.nan, np.nan, np.nan, np.nan
         
-    mean_r = np.mean(stats)
-    ci_lo = np.percentile(stats, 2.5)
-    ci_hi = np.percentile(stats, 97.5)
+    mean_r = np.mean(ratio)
+    ci_lo = np.percentile(ratio, 2.5)
+    ci_hi = np.percentile(ratio, 97.5)
     
     # Significant if 0 not in [lo, hi]
     significant = (ci_lo > 0) or (ci_hi < 0)
